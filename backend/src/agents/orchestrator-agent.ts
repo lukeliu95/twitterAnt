@@ -3,13 +3,14 @@
  * 负责协调和调度各个专项 Agent
  */
 
-import { BaseAgent, type AnalysisResult } from './base-agent.js';
+import type { AnalysisResult } from './base-agent.js';
 import { DemandGapAgent } from './demand-gap-agent.js';
 import { RevenueProofAgent } from './revenue-proof-agent.js';
 import { SkillMatchAgent } from './skill-match-agent.js';
 import { TrendAgent } from './trend-agent.js';
 import type { TweetData, Signal } from '../types/index.js';
 import { logger } from '../utils/logger.js';
+import { AI_CONFIG } from '../config/ai.js';
 
 const ORCHESTRATOR_SYSTEM_PROMPT = `你是一个智能信号协调器，负责判断 Twitter 推文是否包含赚钱机会。
 
@@ -31,14 +32,14 @@ const ORCHESTRATOR_SYSTEM_PROMPT = `你是一个智能信号协调器，负责�
   "reason": "简短说明原因"
 }`;
 
-export class OrchestratorAgent extends BaseAgent {
+export class OrchestratorAgent {
+  protected readonly config = AI_CONFIG;
   private demandAgent: DemandGapAgent;
   private revenueAgent: RevenueProofAgent;
   private skillAgent: SkillMatchAgent;
   private trendAgent: TrendAgent;
 
   constructor() {
-    super('Orchestrator', ORCHESTRATOR_SYSTEM_PROMPT);
 
     // 初始化专项 Agent
     this.demandAgent = new DemandGapAgent();
@@ -61,7 +62,7 @@ export class OrchestratorAgent extends BaseAgent {
       }
 
       // 分配给推荐的 Agent
-      const agent = this.getAgent(decision.recommendedAgent);
+      const agent = this.getAgent(decision.recommendedAgent || 'demand');
       if (!agent) {
         logger.warn(`[Orchestrator] Unknown agent type: ${decision.recommendedAgent}`);
         return null;
@@ -206,7 +207,7 @@ ${tweet.text}
   /**
    * 获取指定的 Agent
    */
-  private getAgent(type: string): BaseAgent | null {
+  private getAgent(type: string): DemandGapAgent | RevenueProofAgent | SkillMatchAgent | TrendAgent | null {
     switch (type) {
       case 'demand':
         return this.demandAgent;
@@ -234,11 +235,75 @@ ${tweet.text}
       description: result.description,
       reason: result.reason,
       actionPlan: result.actionPlan,
-      matchedSkills: result.matchedSkills,
+      matchedSkills: result.matchedSkills || [],
       competition: result.competition,
       originalTweet: tweet,
       createdAt: new Date(),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 天后过期
     };
+  }
+
+  /**
+   * 调用 Claude API
+   */
+  private async callClaude(userPrompt: string): Promise<string> {
+    if (!this.config.authToken && !this.config.anthropicApiKey) {
+      throw new Error('ANTHROPIC_API_KEY not configured');
+    }
+
+    const { Anthropic } = await import('@anthropic-ai/sdk');
+
+    const clientConfig: any = {
+      apiKey: this.config.authToken || this.config.anthropicApiKey,
+    };
+
+    if (this.config.baseURL) {
+      clientConfig.baseURL = this.config.baseURL;
+    }
+
+    const anthropic = new Anthropic(clientConfig);
+
+    try {
+      const response = await anthropic.messages.create({
+        model: this.config.model,
+        max_tokens: this.config.maxTokens,
+        temperature: this.config.temperature,
+        system: ORCHESTRATOR_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: 'user',
+            content: userPrompt,
+          },
+        ],
+      });
+
+      const content = response.content[0];
+      if (content.type === 'text') {
+        return content.text;
+      }
+
+      throw new Error('Unexpected response type from Claude');
+    } catch (error) {
+      logger.error(`[Orchestrator] Claude API error:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 解析 JSON 响应
+   */
+  private parseJSONResponse(text: string): any {
+    try {
+      let jsonText = text;
+      const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (codeBlockMatch) {
+        jsonText = codeBlockMatch[1];
+      }
+
+      return JSON.parse(jsonText);
+    } catch (error) {
+      logger.error(`[Orchestrator] Failed to parse JSON:`, text);
+      throw new Error(`Invalid JSON response: ${error}`);
+    }
   }
 }

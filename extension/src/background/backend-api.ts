@@ -45,10 +45,13 @@ export class BackendAPI {
   /**
    * 获取信号列表
    */
-  async getSignals(userId?: string): Promise<Signal[]> {
+  async getSignals(savedOnly?: boolean, type?: string): Promise<Signal[]> {
     const url = new URL(`${CONFIG.API_BASE_URL}/api/v1/signals`);
-    if (userId) {
-      url.searchParams.set('userId', userId);
+    if (savedOnly) {
+      url.searchParams.set('savedOnly', 'true');
+    }
+    if (type) {
+      url.searchParams.set('type', type);
     }
 
     const urlStr = url.toString();
@@ -66,7 +69,7 @@ export class BackendAPI {
       logger.info('Fetch response status:', response.status, response.statusText);
     } catch (error) {
       logger.error('Fetch failed:', error);
-      throw new Error(`Network error: ${error}`);
+      throw new Error(`Failed to fetch: ${error}`);
     }
 
     if (!response.ok) {
@@ -138,47 +141,36 @@ export class BackendAPI {
   }
 
   /**
-   * 获取已保存的信号 ID 列表
+   * 切换书签状态（保存/取消保存）
    */
-  async getSavedSignalIds(): Promise<string[]> {
-    const url = `${CONFIG.API_BASE_URL}/api/v1/feedback/saved`;
+  async toggleBookmark(signalId: string): Promise<boolean> {
+    const url = `${CONFIG.API_BASE_URL}/api/v1/signals/${signalId}/bookmark`;
     const token = await this.getAuthToken();
 
+    logger.info(`Toggling bookmark for signal ${signalId}`);
+
     const response = await fetch(url, {
+      method: 'PATCH',
       headers: {
+        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      const errorText = await response.text();
+      logger.error('Toggle bookmark error:', response.status, errorText);
+      throw new Error(`API error: ${response.status} - ${errorText}`);
     }
 
     const result = await response.json();
-    return result.data?.savedIds || [];
-  }
 
-  /**
-   * 取消保存信号
-   */
-  async unsaveSignal(signalId: string): Promise<void> {
-    const url = `${CONFIG.API_BASE_URL}/api/v1/feedback/saved/${signalId}`;
-    const token = await this.getAuthToken();
-
-    logger.info(`Unsaving signal ${signalId}`);
-
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+    if (result.success && result.data) {
+      logger.info(`Bookmark ${result.data.saved ? 'added' : 'removed'} for signal ${signalId}`);
+      return result.data.saved;
     }
 
-    logger.info(`Signal ${signalId} unsaved successfully`);
+    throw new Error('Invalid API response');
   }
 
   /**

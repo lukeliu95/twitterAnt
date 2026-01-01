@@ -6,9 +6,10 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import type { TweetData, APIResponse } from '../types/index.js';
-import { createMockSignal, mockSignals } from './signals.js';
+import { createMockSignal } from './signals.js';
 import { OrchestratorAgent } from '../agents/orchestrator-agent.js';
 import { isAIConfigured } from '../config/ai.js';
+import { signalDAO } from '../database/signal-dao.js';
 
 const tweetsRouter = new Hono();
 
@@ -97,7 +98,7 @@ tweetsRouter.post('/batch', zValidator('json', batchTweetsSchema), async (c) => 
         // 使用 AI Agent 分析
         signal = await orchestratorAgent.analyze(tweet);
         if (signal) {
-          mockSignals.push(signal);
+          await signalDAO.upsert(signal);
           console.log(`[API] AI Generated ${signal.type} signal ${signal.id} (score: ${signal.score}) from tweet ${tweet.id}`);
           signalsGenerated++;
         } else {
@@ -107,7 +108,7 @@ tweetsRouter.post('/batch', zValidator('json', batchTweetsSchema), async (c) => 
         // 回退到规则分析
         const signalType = classifyTweet(tweet);
         signal = createMockSignal(tweet, signalType);
-        mockSignals.push(signal);
+        await signalDAO.upsert(signal);
         console.log(`[API] Rule Generated ${signalType} signal ${signal.id} from tweet ${tweet.id}`);
         signalsGenerated++;
       }
@@ -116,7 +117,7 @@ tweetsRouter.post('/batch', zValidator('json', batchTweetsSchema), async (c) => 
       // 出错时使用规则回退
       const signalType = classifyTweet(tweet);
       const signal = createMockSignal(tweet, signalType);
-      mockSignals.push(signal);
+      await signalDAO.upsert(signal);
       signalsGenerated++;
     }
   }

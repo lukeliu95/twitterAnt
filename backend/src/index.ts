@@ -1,12 +1,17 @@
 /**
  * Money Signal Backend API
  * 主服务器入口
+ * Local First 架构 - 数据存储在本地 SQLite
  */
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { serve } from '@hono/node-server';
+
+// 导入数据库
+import { getDatabase } from './database/schema.js';
+import { signalDAO } from './database/signal-dao.js';
 
 // 导入路由
 import tweetsRouter from './routes/tweets';
@@ -27,7 +32,7 @@ app.use('*', cors({
 
 // 手动处理 OPTIONS 预检请求
 app.options('*', (c) => {
-  return c.text('', 204, {
+  return c.newResponse('', 204, {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -80,7 +85,20 @@ app.onError((err, c) => {
 // 启动服务器
 const port = parseInt(process.env.PORT || '3001');
 
-console.log(`
+// 初始化数据库 (Local First)
+async function startServer() {
+  await getDatabase();
+  console.log('[Server] Database initialized');
+
+  // 定期清理过期信号 (每小时)
+  setInterval(async () => {
+    const deleted = await signalDAO.deleteExpired();
+    if (deleted > 0) {
+      console.log(`[Server] Cleaned up ${deleted} expired signals`);
+    }
+  }, 60 * 60 * 1000);
+
+  console.log(`
 ╔════════════════════════════════════════════════════════╗
 ║                                                        ║
 ║   🚀 Money Signal API Server                          ║
@@ -94,7 +112,10 @@ console.log(`
 ╚════════════════════════════════════════════════════════╝
 `);
 
-serve({
-  fetch: app.fetch,
-  port,
-});
+  serve({
+    fetch: app.fetch,
+    port,
+  });
+}
+
+startServer().catch(console.error);

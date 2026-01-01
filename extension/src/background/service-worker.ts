@@ -38,21 +38,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         .catch((error) => sendResponse({ error: error.message }));
       return true; // 异步响应
 
-    case 'SEND_FEEDBACK':
-      handleSendFeedback(message.data)
-        .then((shouldDelete) => sendResponse({ success: true, shouldDelete }))
-        .catch((error) => sendResponse({ error: error.message }));
-      return true; // 异步响应
-
-    case 'GET_SAVED_SIGNALS':
-      handleGetSavedSignals()
-        .then((savedIds) => sendResponse({ savedIds }))
-        .catch((error) => sendResponse({ error: error.message }));
-      return true; // 异步响应
-
-    case 'UNSAVE_SIGNAL':
-      handleUnsaveSignal(message.data)
-        .then(() => sendResponse({ success: true }))
+    case 'TOGGLE_BOOKMARK':
+      handleToggleBookmark(message.data)
+        .then((saved) => sendResponse({ success: true, saved }))
         .catch((error) => sendResponse({ error: error.message }));
       return true; // 异步响应
 
@@ -96,10 +84,9 @@ async function handleNewTweet(tweet: TweetData): Promise<void> {
 /**
  * 处理获取信号请求
  */
-async function handleGetSignals(data?: { userId?: string }): Promise<Signal[]> {
+async function handleGetSignals(data?: { savedOnly?: boolean; type?: string }): Promise<Signal[]> {
   try {
-    const userId = data?.userId;
-    const signals = await backendAPI.getSignals(userId);
+    const signals = await backendAPI.getSignals(data?.savedOnly, data?.type);
     logger.info(`Retrieved ${signals.length} signals`);
     return signals;
   } catch (error) {
@@ -109,58 +96,18 @@ async function handleGetSignals(data?: { userId?: string }): Promise<Signal[]> {
 }
 
 /**
- * 处理发送反馈
+ * 处理切换书签
  */
-async function handleSendFeedback(feedback?: UserFeedback & { userId?: string }): Promise<boolean> {
-  try {
-    if (!feedback || !feedback.signalId) {
-      throw new Error('Invalid feedback data');
-    }
-    // 发送反馈
-    await backendAPI.sendFeedback(feedback);
-
-    // 只有非保存操作才删除信号
-    const shouldDelete = feedback.action !== 'saved';
-    if (shouldDelete) {
-      await backendAPI.deleteSignal(feedback.signalId);
-      logger.info('Feedback sent and signal deleted:', feedback.action);
-    } else {
-      logger.info('Signal saved:', feedback.signalId);
-    }
-
-    return shouldDelete;
-  } catch (error) {
-    logger.error('Failed to send feedback:', error);
-    throw error;
-  }
-}
-
-/**
- * 处理获取已保存信号列表
- */
-async function handleGetSavedSignals(): Promise<string[]> {
-  try {
-    const savedIds = await backendAPI.getSavedSignalIds();
-    logger.info(`Retrieved ${savedIds.length} saved signals`);
-    return savedIds;
-  } catch (error) {
-    logger.error('Failed to get saved signals:', error);
-    throw error;
-  }
-}
-
-/**
- * 处理取消保存信号
- */
-async function handleUnsaveSignal(data?: { signalId: string }): Promise<void> {
+async function handleToggleBookmark(data?: { signalId: string }): Promise<boolean> {
   try {
     if (!data || !data.signalId) {
       throw new Error('Invalid signal data');
     }
-    await backendAPI.unsaveSignal(data.signalId);
-    logger.info('Signal unsaved:', data.signalId);
+    const isSaved = await backendAPI.toggleBookmark(data.signalId);
+    logger.info(`Bookmark ${isSaved ? 'added' : 'removed'} for signal ${data.signalId}`);
+    return isSaved;
   } catch (error) {
-    logger.error('Failed to unsave signal:', error);
+    logger.error('Failed to toggle bookmark:', error);
     throw error;
   }
 }

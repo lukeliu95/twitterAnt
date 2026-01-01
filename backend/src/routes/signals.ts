@@ -1,74 +1,55 @@
 /**
  * 信号相关 API 路由
+ * Local First 架构 - 数据存储在本地 SQLite
  */
 
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
 import type { Signal, APIResponse } from '../types/index.js';
+import { signalDAO } from '../database/signal-dao.js';
 
 const signalsRouter = new Hono();
-
-// 内存存储（开发阶段）
-// 实际项目中会从数据库或 AI 分析获取
-let mockSignals: Signal[] = [];
 
 /**
  * GET /api/v1/signals
  * 获取信号列表
  */
-signalsRouter.get('/', (c) => {
-  const userId = c.req.query('userId');
+signalsRouter.get('/', async (c) => {
   const type = c.req.query('type');
-  const minScore = c.req.query('minScore');
-  const limit = parseInt(c.req.query('limit') || '20');
-  const sortBy = c.req.query('sort') || 'score'; // score | time
+  const savedOnly = c.req.query('savedOnly') === 'true';
+  const limit = parseInt(c.req.query('limit') || '50');
 
-  let filteredSignals = mockSignals;
-
-  // 过滤活跃信号
-  filteredSignals = filteredSignals.filter(s =>
-    s.expiresAt > new Date()
-  );
-
-  // 按类型过滤
-  if (type) {
-    filteredSignals = filteredSignals.filter(s => s.type === type);
-  }
-
-  // 按分数过滤
-  if (minScore) {
-    filteredSignals = filteredSignals.filter(s => s.score >= parseInt(minScore));
-  }
-
-  // 排序：先按评分降序，评分相同时按时间降序（最新的在前）
-  filteredSignals = filteredSignals.sort((a, b) => {
-    if (sortBy === 'time') {
-      // 按时间排序：最新的在前
-      const timeA = new Date(a.createdAt).getTime();
-      const timeB = new Date(b.createdAt).getTime();
-      return timeB - timeA;
-    } else {
-      // 默认按评分排序，评分相同时按时间
-      if (b.score !== a.score) {
-        return b.score - a.score;
-      }
-      // 评分相同时，新的在前
-      const timeA = new Date(a.createdAt).getTime();
-      const timeB = new Date(b.createdAt).getTime();
-      return timeB - timeA;
-    }
+  const signals = await signalDAO.getAll({
+    type,
+    savedOnly,
+    limit,
   });
 
-  // 限制数量
-  filteredSignals = filteredSignals.slice(0, limit);
+  // 过滤过期信号
+  const activeSignals = signals.filter(s => s.expiresAt > new Date());
 
-  console.log(`[API] Retrieved ${filteredSignals.length} signals for user ${userId || 'anonymous'} (sort: ${sortBy})`);
+  console.log(`[API] Retrieved ${activeSignals.length} active signals`);
 
   return c.json<APIResponse>({
     success: true,
     data: {
-      signals: filteredSignals,
-      total: filteredSignals.length,
+      signals: activeSignals,
+      total: activeSignals.length,
     },
+  });
+});
+
+/**
+ * GET /api/v1/signals/stats
+ * 获取信号统计
+ */
+signalsRouter.get('/stats', async (c) => {
+  const stats = await signalDAO.getStats();
+
+  return c.json<APIResponse>({
+    success: true,
+    data: stats,
   });
 });
 
@@ -76,9 +57,9 @@ signalsRouter.get('/', (c) => {
  * GET /api/v1/signals/:id
  * 获取单个信号详情
  */
-signalsRouter.get('/:id', (c) => {
+signalsRouter.get('/:id', async (c) => {
   const id = c.req.param('id');
-  const signal = mockSignals.find(s => s.id === id);
+  const signal = await signalDAO.getById(id);
 
   if (!signal) {
     return c.json<APIResponse>({
@@ -97,14 +78,14 @@ signalsRouter.get('/:id', (c) => {
 });
 
 /**
- * DELETE /api/v1/signals/:id
- * 删除信号（用户反馈后移除）
+ * PATCH /api/v1/signals/:id/bookmark
+ * 切换书签状态
  */
-signalsRouter.delete('/:id', (c) => {
+signalsRouter.patch('/:id/bookmark', async (c) => {
   const id = c.req.param('id');
-  const index = mockSignals.findIndex(s => s.id === id);
+  const isSaved = await signalDAO.toggleSaved(id);
 
-  if (index === -1) {
+  if (isSaved === false) {
     return c.json<APIResponse>({
       success: false,
       error: {
@@ -114,7 +95,36 @@ signalsRouter.delete('/:id', (c) => {
     }, 404);
   }
 
-  mockSignals.splice(index, 1);
+  const signal = await signalDAO.getById(id);
+
+  return c.json<APIResponse>({
+    success: true,
+    data: {
+      id,
+      saved: isSaved,
+      signal,
+    },
+  });
+});
+
+/**
+ * DELETE /api/v1/signals/:id
+ * 删除信号
+ */
+signalsRouter.delete('/:id', async (c) => {
+  const id = c.req.param('id');
+  const deleted = await signalDAO.delete(id);
+
+  if (!deleted) {
+    return c.json<APIResponse>({
+      success: false,
+      error: {
+        code: 'SIGNAL_NOT_FOUND',
+        message: 'Signal not found',
+      },
+    }, 404);
+  }
+
   console.log(`[API] Deleted signal ${id}`);
 
   return c.json<APIResponse>({
@@ -126,14 +136,27 @@ signalsRouter.delete('/:id', (c) => {
 });
 
 /**
+ * POST /api/v1/signals/cleanup
+ * 清理过期信号
+ */
+signalsRouter.post('/cleanup', async (c) => {
+  const deletedCount = await signalDAO.deleteExpired();
+
+  console.log(`[API] Cleaned up ${deletedCount} expired signals`);
+
+  return c.json<APIResponse>({
+    success: true,
+    data: {
+      deleted: deletedCount,
+    },
+  });
+});
+
+/**
  * 创建模拟信号（用于测试）
- * 根据推文内容智能生成信号和评分
  */
 export function createMockSignal(tweet: any, type: string = 'demand'): Signal {
-  // 计算信号评分（基于多个因素）
   const score = calculateSignalScore(tweet, type);
-
-  // 根据类型生成不同的内容
   const content = generateSignalContent(tweet, type);
 
   return {
@@ -149,7 +172,7 @@ export function createMockSignal(tweet: any, type: string = 'demand'): Signal {
     competition: content.competition,
     originalTweet: tweet,
     createdAt: new Date(),
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 天后过期
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   };
 }
 
@@ -157,35 +180,30 @@ export function createMockSignal(tweet: any, type: string = 'demand'): Signal {
  * 计算信号评分
  */
 function calculateSignalScore(tweet: any, type: string): number {
-  let score = 3; // 基础分
+  let score = 3;
 
-  // 1. 作者影响力
   if (tweet.author.verified) score += 0.5;
   if (tweet.author.followerCount > 50000) score += 0.5;
   if (tweet.author.followerCount > 100000) score += 0.5;
 
-  // 2. 互动数据
   const engagementRatio = tweet.engagement.likes / Math.max(tweet.author.followerCount, 1);
-  if (engagementRatio > 0.01) score += 0.5; // 高互动率
+  if (engagementRatio > 0.01) score += 0.5;
   if (tweet.engagement.retweets > 50) score += 0.3;
   if (tweet.engagement.likes > 100) score += 0.2;
 
-  // 3. 内容质量
   const textLength = tweet.text.length;
-  if (textLength > 100 && textLength < 500) score += 0.3; // 适中长度
-  if (tweet.links && tweet.links.length > 0) score += 0.2; // 包含链接
-  if (tweet.media && tweet.media.length > 0) score += 0.1; // 包含媒体
+  if (textLength > 100 && textLength < 500) score += 0.3;
+  if (tweet.links && tweet.links.length > 0) score += 0.2;
+  if (tweet.media && tweet.media.length > 0) score += 0.1;
 
-  // 4. 类型加成
   const typeBonus: Record<string, number> = {
-    demand: 0.5,   // 需求缺口最有价值
-    revenue: 0.8,  // 收入验证最重要
-    skill: 0.3,    // 技能需求
-    trend: 0.4,    // 趋势机会
+    demand: 0.5,
+    revenue: 0.8,
+    skill: 0.3,
+    trend: 0.4,
   };
   score += typeBonus[type] || 0;
 
-  // 限制在 1-5 分
   return Math.min(5, Math.max(1, Math.round(score * 10) / 10));
 }
 
@@ -233,7 +251,7 @@ function generateSignalContent(tweet: any, type: string): any {
         reason: '推文提到特定技能的稀缺性或高价值',
         actionPlan: [
           '评估该技能的学习成本',
-          '查找示威项目和作品集',
+          '查找示范项目和作品集',
           '考虑兼职或自由职业验证',
           '建立个人品牌',
         ],
@@ -268,8 +286,4 @@ function generateSignalContent(tweet: any, type: string): any {
   }
 }
 
-// 导出路由器
 export default signalsRouter;
-
-// 导出 signals 存储供测试使用
-export { mockSignals };

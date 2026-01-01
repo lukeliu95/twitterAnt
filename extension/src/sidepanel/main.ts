@@ -1,5 +1,10 @@
 /**
  * Side Panel 主入口
+ * Alan Cooper 设计原则：简化交互，减少认知负荷
+ *
+ * 核心交互：
+ * - 点击🔖图标保存/取消保存
+ * - 无其他按钮，保持界面简洁
  */
 
 import { logger } from '../shared/utils/logger';
@@ -9,11 +14,10 @@ logger.info('Side Panel initialized');
 
 // 状态
 let signals: Signal[] = [];
-let savedSignalIds: Set<string> = new Set();
 let loading = false;
 let isOfflineMode = false;
 let currentView: 'all' | 'saved' = 'all';
-let currentFilter: string = 'all'; // all, demand, revenue, skill, trend
+let currentFilter: string = 'all';
 let expandedSignals: Set<string> = new Set();
 let translatedSignals: Set<string> = new Set();
 
@@ -33,11 +37,13 @@ async function loadSignals(): Promise<void> {
   loading = true;
 
   try {
-    // 并行获取信号和已保存列表
-    const [signalsResponse, savedResponse] = await Promise.all([
-      chrome.runtime.sendMessage({ type: 'GET_SIGNALS' }),
-      chrome.runtime.sendMessage({ type: 'GET_SAVED_SIGNALS' })
-    ]);
+    const signalsResponse = await chrome.runtime.sendMessage({
+      type: 'GET_SIGNALS',
+      data: {
+        savedOnly: currentView === 'saved',
+        type: currentFilter === 'all' ? undefined : currentFilter,
+      },
+    });
 
     if (!signalsResponse) {
       throw new Error('No response from background');
@@ -54,11 +60,14 @@ async function loadSignals(): Promise<void> {
 
     isOfflineMode = false;
     signals = signalsResponse.signals || [];
-    savedSignalIds = new Set(savedResponse?.savedIds || []);
 
-    logger.info(`Loaded ${signals.length} signals, ${savedSignalIds.size} saved`);
+    logger.info(`Loaded ${signals.length} signals (${currentView} view)`);
 
-    renderSignals();
+    if (signals.length === 0) {
+      renderEmptyWithHint();
+    } else {
+      renderSignals();
+    }
   } catch (error) {
     logger.error('Failed to load signals:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -86,7 +95,10 @@ function renderOfflineMode(): void {
       </svg>
       <p style="font-size: 16px; margin-bottom: 8px;">离线模式</p>
       <p style="font-size: 13px; color: #8899a6;">后端服务未响应</p>
-      <button onclick="location.reload()" style="
+      <button onclick="location.reload()" class="retry-btn">重试</button>
+    </div>
+    <style>
+      .retry-btn {
         margin-top: 16px;
         padding: 8px 16px;
         background: #1fa1f1;
@@ -94,8 +106,8 @@ function renderOfflineMode(): void {
         border-radius: 4px;
         color: white;
         cursor: pointer;
-      ">重试</button>
-    </div>
+      }
+    </style>
   `;
 }
 
@@ -106,6 +118,7 @@ function renderEmptyWithHint(): void {
   if (!app) return;
 
   const isSavedView = currentView === 'saved';
+
   app.innerHTML = `
     <div class="empty-state">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.5;">
@@ -113,7 +126,7 @@ function renderEmptyWithHint(): void {
       </svg>
       <p style="font-size: 16px;">${isSavedView ? '暂无保存的信号' : '暂无信号'}</p>
       <p style="font-size: 13px; color: #8899a6; margin-top: 8px;">
-        ${isSavedView ? '点击"🔖 保存"按钮收藏感兴趣的信号' : '浏览 Twitter 时我们会自动发现赚钱机会'}
+        ${isSavedView ? '点击🔖保存感兴趣的信号' : '浏览 Twitter 时我们会自动发现赚钱机会'}
       </p>
     </div>
   `;
@@ -125,124 +138,59 @@ function renderEmptyWithHint(): void {
 function renderSignals(): void {
   if (!app) return;
 
-  // 根据当前视图筛选
-  let filteredSignals = signals;
-  if (currentView === 'saved') {
-    filteredSignals = signals.filter(s => savedSignalIds.has(s.id));
-  } else if (currentFilter !== 'all') {
-    filteredSignals = signals.filter(s => s.type === currentFilter);
-  }
-
-  if (filteredSignals.length === 0) {
+  if (signals.length === 0) {
     renderEmptyWithHint();
     return;
   }
 
-  const signalsHtml = filteredSignals.map((signal) => renderSignalCard(signal)).join('');
+  const signalsHtml = signals.map((signal) => renderSignalCard(signal)).join('');
 
   app.innerHTML = `
-    <div style="padding: 0 0 16px 0;">
+    <div class="signals-container">
       ${renderHeader()}
-      ${signalsHtml}
+      <div class="signals-list">
+        ${signalsHtml}
+      </div>
     </div>
+    ${getStyles()}
   `;
-
-  // 绑定事件
-  bindSignalCardEvents();
 }
 
 /**
  * 渲染头部
  */
 function renderHeader(): string {
-  const savedCount = signals.filter(s => savedSignalIds.has(s.id)).length;
+  const savedCount = signals.filter(s => s.saved).length;
+  const totalCount = signals.length;
 
   return `
-    <div style="padding: 12px 16px; border-bottom: 1px solid #38444d;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <div style="display: flex; gap: 8px;">
-          <button onclick="switchView('all')" class="view-btn ${currentView === 'all' ? 'active' : ''}" data-view="all">
-            全部 (${signals.length})
-          </button>
-          <button onclick="switchView('saved')" class="view-btn ${currentView === 'saved' ? 'active' : ''}" data-view="saved">
-            已保存 (${savedCount})
-          </button>
-        </div>
-        <button onclick="manualRefresh()" style="
-          padding: 6px 12px;
-          background: transparent;
-          border: 1px solid #38444d;
-          border-radius: 4px;
-          color: #1fa1f1;
-          cursor: pointer;
-          font-size: 12px;
-        ">刷新</button>
+    <div class="header">
+      <div class="header-tabs">
+        <button class="tab-btn ${currentView === 'all' ? 'active' : ''}" onclick="switchView('all')">
+          全部 <span class="count">${totalCount}</span>
+        </button>
+        <button class="tab-btn ${currentView === 'saved' ? 'active' : ''}" onclick="switchView('saved')">
+          已保存 <span class="count">${savedCount}</span>
+        </button>
       </div>
 
       ${currentView === 'all' ? `
-        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-          ${renderFilterButtons()}
+        <div class="filter-chips">
+          <button class="chip ${currentFilter === 'all' ? 'active' : ''}" onclick="setFilter('all')">全部</button>
+          <button class="chip ${currentFilter === 'demand' ? 'active' : ''}" onclick="setFilter('demand')">需求</button>
+          <button class="chip ${currentFilter === 'revenue' ? 'active' : ''}" onclick="setFilter('revenue')">收入</button>
+          <button class="chip ${currentFilter === 'skill' ? 'active' : ''}" onclick="setFilter('skill')">技能</button>
+          <button class="chip ${currentFilter === 'trend' ? 'active' : ''}" onclick="setFilter('trend')">趋势</button>
         </div>
       ` : ''}
+
+      <button class="refresh-btn" onclick="manualRefresh()">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+      </button>
     </div>
-    <style>
-      .view-btn {
-        padding: 6px 12px;
-        background: transparent;
-        border: 1px solid #38444d;
-        border-radius: 4px;
-        color: #8899a6;
-        cursor: pointer;
-        font-size: 12px;
-        transition: all 0.2s;
-      }
-      .view-btn:hover {
-        background: #22303c;
-      }
-      .view-btn.active {
-        background: #1fa1f1;
-        border-color: #1fa1f1;
-        color: white;
-      }
-      .filter-btn {
-        padding: 4px 10px;
-        background: transparent;
-        border: 1px solid #38444d;
-        border-radius: 12px;
-        color: #8899a6;
-        cursor: pointer;
-        font-size: 11px;
-        transition: all 0.2s;
-      }
-      .filter-btn:hover {
-        background: #22303c;
-      }
-      .filter-btn.active {
-        background: #1fa1f1;
-        border-color: #1fa1f1;
-        color: white;
-      }
-    </style>
   `;
-}
-
-/**
- * 渲染筛选按钮
- */
-function renderFilterButtons(): string {
-  const filters = [
-    { value: 'all', label: '全部', color: '#8899a6' },
-    { value: 'demand', label: '需求', color: '#1fa1f1' },
-    { value: 'revenue', label: '收入', color: '#17bf63' },
-    { value: 'skill', label: '技能', color: '#ffd700' },
-    { value: 'trend', label: '趋势', color: '#e0245e' },
-  ];
-
-  return filters.map(f => `
-    <button onclick="setFilter('${f.value}')" class="filter-btn ${currentFilter === f.value ? 'active' : ''}" data-filter="${f.value}">
-      ${f.label}
-    </button>
-  `).join('');
 }
 
 /**
@@ -265,7 +213,7 @@ function renderSignalCard(signal: Signal): string {
 
   const scoreStars = '★'.repeat(signal.score) + '☆'.repeat(5 - signal.score);
   const isExpanded = expandedSignals.has(signal.id);
-  const isSaved = savedSignalIds.has(signal.id);
+  const isSaved = signal.saved || false;
   const isTranslated = translatedSignals.has(signal.id);
 
   // 格式化本地时间
@@ -278,181 +226,86 @@ function renderSignalCard(signal: Signal): string {
   });
 
   return `
-    <div class="signal-card" data-signal-id="${signal.id}" style="
-      background: #192734;
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 12px;
-      border: 1px solid ${isSaved ? '#ffd700' : '#38444d'};
-    ">
-      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
-        <div>
-          <span class="signal-type" style="
-            background: ${typeColors[signal.type]}20;
-            color: ${typeColors[signal.type]};
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-          ">${typeLabels[signal.type]}</span>
-          <span style="font-size: 11px; color: #666; margin-left: 8px;">${timeStr}</span>
-          ${isSaved ? '<span style="color: #ffd700; margin-left: 8px;">🔖</span>' : ''}
+    <div class="signal-card ${isSaved ? 'saved' : ''}" data-signal-id="${signal.id}">
+      <!-- 顶部：类型标签、时间、评分、书签图标 -->
+      <div class="card-header">
+        <div class="header-left">
+          <span class="type-badge" style="background: ${typeColors[signal.type]}20; color: ${typeColors[signal.type]};">
+            ${typeLabels[signal.type]}
+          </span>
+          <span class="time">${timeStr}</span>
         </div>
-        <span class="signal-score" style="color: #ffd700; font-size: 14px;">${scoreStars}</span>
+        <div class="header-right">
+          <span class="score">${scoreStars}</span>
+          <button class="bookmark-btn ${isSaved ? 'saved' : ''}" onclick="toggleBookmark('${signal.id}')" title="${isSaved ? '取消保存' : '保存'}">
+            ${isSaved ? '🔥' : '🔖'}
+          </button>
+        </div>
       </div>
 
-      <p class="signal-summary" style="
-        font-size: 14px;
-        line-height: 1.5;
-        margin-bottom: 12px;
-        color: #ffffff;
-      ">${signal.summary}</p>
+      <!-- 摘要 -->
+      <p class="summary">${signal.summary}</p>
 
-      <button onclick="toggleExpand('${signal.id}')" class="expand-btn" style="
-        background: transparent;
-        border: none;
-        color: #1fa1f1;
-        cursor: pointer;
-        font-size: 12px;
-        padding: 0;
-        margin-bottom: 8px;
-      ">${isExpanded ? '收起详情 ▲' : '展开详情 ▼'}</button>
-
+      <!-- 展开详情 -->
       ${isExpanded ? `
-        <div class="signal-details" style="
-          background: #0d1117;
-          padding: 12px;
-          border-radius: 8px;
-          margin-bottom: 12px;
-          font-size: 13px;
-          color: #8899a6;
-        ">
-          <p style="margin-bottom: 8px;"><strong>原因：</strong>${signal.reason}</p>
-          <p style="margin-bottom: 8px;"><strong>行动计划：</strong></p>
-          <ul style="margin: 0; padding-left: 20px;">
+        <div class="details">
+          <p class="detail-item"><strong>原因：</strong>${signal.reason}</p>
+          <p class="detail-item"><strong>行动计划：</strong></p>
+          <ul class="action-list">
             ${signal.actionPlan.map((item: string) => `<li>${item}</li>`).join('')}
           </ul>
-          <p style="margin-top: 8px; margin-bottom: 8px;"><strong>匹配技能：</strong>${signal.matchedSkills?.join(', ') || '暂无'}</p>
-          <p><strong>竞争程度：</strong>${signal.competition || '暂无分析'}</p>
-        </div>
+          <p class="detail-item"><strong>匹配技能：</strong>${signal.matchedSkills?.join(', ') || '暂无'}</p>
+          <p class="detail-item"><strong>竞争程度：</strong>${signal.competition || '暂无分析'}</p>
 
-        <div class="signal-tweet" style="
-          background: #0d1117;
-          padding: 12px;
-          border-radius: 8px;
-          margin-bottom: 12px;
-        ">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-size: 12px; color: #666;">原文</span>
-            <button onclick="toggleTranslate('${signal.id}')" class="translate-btn" data-signal-id="${signal.id}" style="
-              background: transparent;
-              border: 1px solid #38444d;
-              border-radius: 4px;
-              padding: 4px 8px;
-              color: #1fa1f1;
-              cursor: pointer;
-              font-size: 11px;
-            ">${isTranslated ? '显示原文' : '翻译'}</button>
+          <!-- 原推文区域 -->
+          <div class="tweet-box">
+            <div class="tweet-header">
+              <span class="tweet-label">原文</span>
+              <button class="translate-btn" onclick="toggleTranslate('${signal.id}')">
+                ${isTranslated ? '显示原文' : '翻译'}
+              </button>
+            </div>
+            <p class="tweet-text">${isTranslated ? translateText(signal.originalTweet.text) : signal.originalTweet.text}</p>
+            <a href="${signal.originalTweet.url}" target="_blank" class="tweet-link">查看推文 →</a>
           </div>
-          <p class="tweet-text" style="
-            font-size: 13px;
-            color: #8899a6;
-            line-height: 1.5;
-            margin: 0;
-          ">${isTranslated ? translateText(signal.originalTweet.text) : signal.originalTweet.text}</p>
-          <a href="${signal.originalTweet.url}" target="_blank" style="
-            display: inline-block;
-            margin-top: 8px;
-            font-size: 11px;
-            color: #1fa1f1;
-            text-decoration: none;
-          ">查看推文 →</a>
         </div>
       ` : ''}
 
-      <div class="signal-actions" style="display: flex; gap: 8px;">
-        ${isSaved ? `
-          <button onclick="handleUnsave('${signal.id}')" class="action-btn unsave-btn" data-signal-id="${signal.id}" style="
-            flex: 1;
-            padding: 8px;
-            background: #ffd70020;
-            border: 1px solid #ffd700;
-            border-radius: 6px;
-            color: #ffd700;
-            cursor: pointer;
-            font-size: 13px;
-          ">🔖 已保存</button>
-        ` : `
-          <button onclick="handleSave('${signal.id}')" class="action-btn save-btn" data-signal-id="${signal.id}" style="
-            flex: 1;
-            padding: 8px;
-            background: #192734;
-            border: 1px solid #38444d;
-            border-radius: 6px;
-            color: #1fa1f1;
-            cursor: pointer;
-            font-size: 13px;
-          ">🔖 保存</button>
-        `}
-        <button onclick="handleAction('${signal.id}', 'acted')" class="action-btn" style="
-          flex: 1;
-          padding: 8px;
-          background: #192734;
-          border: 1px solid #38444d;
-          border-radius: 6px;
-          color: #17bf63;
-          cursor: pointer;
-          font-size: 13px;
-        ">✓ 已行动</button>
-        <button onclick="handleAction('${signal.id}', 'ignored')" class="action-btn" style="
-          flex: 1;
-          padding: 8px;
-          background: #192734;
-          border: 1px solid #38444d;
-          border-radius: 6px;
-          color: #8899a6;
-          cursor: pointer;
-          font-size: 13px;
-        ">✗ 忽略</button>
-      </div>
+      <!-- 展开按钮 -->
+      <button class="expand-btn" onclick="toggleExpand('${signal.id}')">
+        ${isExpanded ? '收起详情 ▲' : '展开详情 ▼'}
+      </button>
     </div>
   `;
 }
 
 /**
- * 绑定信号卡片事件
+ * 切换书签状态
  */
-function bindSignalCardEvents(): void {
-  // 可以在这里添加其他事件绑定
+async function toggleBookmark(signalId: string): Promise<void> {
+  logger.info(`Toggle bookmark: ${signalId}`);
+
+  try {
+    await chrome.runtime.sendMessage({
+      type: 'TOGGLE_BOOKMARK',
+      data: { signalId },
+    });
+
+    // 更新本地状态
+    const signal = signals.find(s => s.id === signalId);
+    if (signal) {
+      signal.saved = !signal.saved;
+      logger.info(`Bookmark ${signal.saved ? 'added' : 'removed'} for signal ${signalId}`);
+    }
+
+    renderSignals();
+  } catch (error) {
+    logger.error('Failed to toggle bookmark:', error);
+  }
 }
 
 /**
- * 简单翻译（使用浏览器 API 或备用翻译）
- */
-function translateText(text: string): string {
-  // 这里使用简单的翻译标记
-  // 实际应该调用翻译 API
-  return `[翻译] ${text}`;
-}
-
-/**
- * 切换视图
- */
-function switchView(view: 'all' | 'saved'): void {
-  currentView = view;
-  renderSignals();
-}
-
-/**
- * 设置筛选
- */
-function setFilter(filter: string): void {
-  currentFilter = filter;
-  renderSignals();
-}
-
-/**
- * 切换展开/收起
+ * 切换展开状态
  */
 function toggleExpand(signalId: string): void {
   if (expandedSignals.has(signalId)) {
@@ -476,67 +329,27 @@ function toggleTranslate(signalId: string): void {
 }
 
 /**
- * 处理保存
+ * 简单翻译
  */
-async function handleSave(signalId: string): Promise<void> {
-  logger.info(`Saving signal: ${signalId}`);
-
-  try {
-    await chrome.runtime.sendMessage({
-      type: 'SEND_FEEDBACK',
-      data: { signalId, action: 'saved' },
-    });
-
-    savedSignalIds.add(signalId);
-    renderSignals();
-    logger.info('Signal saved successfully');
-  } catch (error) {
-    logger.error('Failed to save signal:', error);
-  }
+function translateText(text: string): string {
+  // TODO: 接入真实翻译 API
+  return `[翻译] ${text}`;
 }
 
 /**
- * 处理取消保存
+ * 切换视图
  */
-async function handleUnsave(signalId: string): Promise<void> {
-  logger.info(`Unsaving signal: ${signalId}`);
-
-  try {
-    await chrome.runtime.sendMessage({
-      type: 'UNSAVE_SIGNAL',
-      data: { signalId },
-    });
-
-    savedSignalIds.delete(signalId);
-    renderSignals();
-    logger.info('Signal unsaved successfully');
-  } catch (error) {
-    logger.error('Failed to unsave signal:', error);
-  }
+function switchView(view: 'all' | 'saved'): void {
+  currentView = view;
+  loadSignals();
 }
 
 /**
- * 处理行动/忽略
+ * 设置筛选
  */
-async function handleAction(signalId: string, action: string): Promise<void> {
-  logger.info(`Signal action: ${signalId} - ${action}`);
-
-  try {
-    const response = await chrome.runtime.sendMessage({
-      type: 'SEND_FEEDBACK',
-      data: { signalId, action },
-    });
-
-    if (response.success) {
-      // 从列表中移除（已行动和忽略会删除信号）
-      signals = signals.filter((s) => s.id !== signalId);
-      savedSignalIds.delete(signalId);
-      renderSignals();
-      logger.info(`${action} feedback sent successfully`);
-    }
-  } catch (error) {
-    logger.error('Failed to send feedback:', error);
-  }
+function setFilter(filter: string): void {
+  currentFilter = filter;
+  loadSignals();
 }
 
 /**
@@ -572,15 +385,316 @@ function stopAutoRefresh(): void {
   }
 }
 
-// 全局暴露给 HTML 使用
-(window as any).handleSave = handleSave;
-(window as any).handleUnsave = handleUnsave;
-(window as any).handleAction = handleAction;
-(window as any).manualRefresh = manualRefresh;
-(window as any).switchView = switchView;
-(window as any).setFilter = setFilter;
+/**
+ * 获取样式
+ */
+function getStyles(): string {
+  return `
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        background: #000;
+        color: #e7e9ea;
+      }
+
+      .signals-container {
+        min-height: 100vh;
+        background: #000;
+      }
+
+      /* 头部样式 */
+      .header {
+        padding: 12px 16px;
+        border-bottom: 1px solid #2f3336;
+        position: sticky;
+        top: 0;
+        background: #000;
+        z-index: 10;
+      }
+
+      .header-tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .tab-btn {
+        padding: 8px 16px;
+        background: transparent;
+        border: 1px solid #2f3336;
+        border-radius: 20px;
+        color: #71767b;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.2s;
+      }
+
+      .tab-btn:hover {
+        background: #16181c;
+      }
+
+      .tab-btn.active {
+        background: #1d9bf0;
+        border-color: #1d9bf0;
+        color: #fff;
+      }
+
+      .tab-btn .count {
+        opacity: 0.7;
+        font-size: 12px;
+      }
+
+      .filter-chips {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .chip {
+        padding: 6px 12px;
+        background: transparent;
+        border: 1px solid #2f3336;
+        border-radius: 16px;
+        color: #71767b;
+        cursor: pointer;
+        font-size: 13px;
+        transition: all 0.2s;
+      }
+
+      .chip:hover {
+        background: #16181c;
+      }
+
+      .chip.active {
+        background: #1d9bf0;
+        border-color: #1d9bf0;
+        color: #fff;
+      }
+
+      .refresh-btn {
+        position: absolute;
+        top: 12px;
+        right: 16px;
+        padding: 6px;
+        background: transparent;
+        border: none;
+        color: #71767b;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: all 0.2s;
+      }
+
+      .refresh-btn:hover {
+        background: #16181c;
+        color: #1d9bf0;
+      }
+
+      /* 信号卡片样式 */
+      .signals-list {
+        padding: 12px 16px 80px 16px;
+      }
+
+      .signal-card {
+        background: #16181c;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 12px;
+        border: 1px solid #2f3336;
+        transition: all 0.2s;
+      }
+
+      .signal-card.saved {
+        border-color: #f91880;
+      }
+
+      .signal-card:hover {
+        background: #1d1f23;
+      }
+
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .header-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .type-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .time {
+        font-size: 12px;
+        color: #71767b;
+      }
+
+      .score {
+        color: #ffd700;
+        font-size: 14px;
+      }
+
+      .bookmark-btn {
+        padding: 6px 8px;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        font-size: 18px;
+        transition: all 0.2s;
+        border-radius: 4px;
+      }
+
+      .bookmark-btn:hover {
+        background: #2f3336;
+        transform: scale(1.1);
+      }
+
+      .bookmark-btn.saved {
+        color: #f91880;
+      }
+
+      .summary {
+        font-size: 15px;
+        line-height: 1.5;
+        margin-bottom: 12px;
+        color: #e7e9ea;
+      }
+
+      .expand-btn {
+        padding: 6px 0;
+        background: transparent;
+        border: none;
+        color: #1d9bf0;
+        cursor: pointer;
+        font-size: 13px;
+        width: 100%;
+        text-align: center;
+      }
+
+      .details {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid #2f3336;
+      }
+
+      .detail-item {
+        font-size: 13px;
+        color: #71767b;
+        line-height: 1.6;
+        margin-bottom: 8px;
+      }
+
+      .action-list {
+        margin: 8px 0;
+        padding-left: 20px;
+        color: #71767b;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .tweet-box {
+        margin-top: 12px;
+        padding: 12px;
+        background: #000;
+        border-radius: 8px;
+        border: 1px solid #2f3336;
+      }
+
+      .tweet-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .tweet-label {
+        font-size: 12px;
+        color: #71767b;
+      }
+
+      .translate-btn {
+        padding: 4px 8px;
+        background: transparent;
+        border: 1px solid #2f3336;
+        border-radius: 4px;
+        color: #1d9bf0;
+        cursor: pointer;
+        font-size: 11px;
+      }
+
+      .translate-btn:hover {
+        background: #16181c;
+      }
+
+      .tweet-text {
+        font-size: 13px;
+        color: #71767b;
+        line-height: 1.5;
+        margin-bottom: 8px;
+      }
+
+      .tweet-link {
+        display: inline-block;
+        font-size: 12px;
+        color: #1d9bf0;
+        text-decoration: none;
+      }
+
+      .tweet-link:hover {
+        text-decoration: underline;
+      }
+
+      /* 空状态样式 */
+      .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+        text-align: center;
+      }
+
+      .empty-state svg {
+        width: 64px;
+        height: 64px;
+        margin-bottom: 16px;
+        opacity: 0.5;
+      }
+
+      .empty-state p {
+        font-size: 16px;
+        margin-bottom: 8px;
+      }
+    </style>
+  `;
+}
+
+// 全局函数
+(window as any).toggleBookmark = toggleBookmark;
 (window as any).toggleExpand = toggleExpand;
 (window as any).toggleTranslate = toggleTranslate;
+(window as any).switchView = switchView;
+(window as any).setFilter = setFilter;
+(window as any).manualRefresh = manualRefresh;
 
 // 页面加载时获取信号
 loadSignals();

@@ -44,6 +44,7 @@ export interface Signal {
   originalTweet: TweetData;
   createdAt: Date;
   expiresAt: Date;
+  saved?: boolean;
 }
 
 export type SignalType = 'demand' | 'revenue' | 'skill' | 'trend';
