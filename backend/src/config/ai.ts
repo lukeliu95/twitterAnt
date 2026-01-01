@@ -29,7 +29,7 @@ export const AI_CONFIG = {
   authToken: process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY || '', // PPIO 使用 authToken
   baseURL: process.env.ANTHROPIC_BASE_URL, // 支持 PPIO 等兼容服务
   model: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
-  maxTokens: 2000,
+  maxTokens: 128000,
   temperature: 0.3,
 
   // 分析配置

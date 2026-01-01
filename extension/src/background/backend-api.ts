@@ -174,6 +174,67 @@ export class BackendAPI {
   }
 
   /**
+   * 更新备注
+   */
+  async updateNotes(signalId: string, notes: string): Promise<void> {
+    const url = `${CONFIG.API_BASE_URL}/api/v1/signals/${signalId}/notes`;
+    const token = await this.getAuthToken();
+
+    logger.info(`Updating notes for signal ${signalId}`);
+
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ notes }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error('Update notes error:', response.status, errorText);
+      throw new Error(`API error: ${response.status} - ${errorText}`);
+    }
+
+    logger.info(`Notes updated for signal ${signalId}`);
+  }
+
+  /**
+   * 批量删除信号
+   */
+  async batchDeleteSignals(ids: string[]): Promise<{ deleted: number; total: number }> {
+    const url = `${CONFIG.API_BASE_URL}/api/v1/signals/batch-delete`;
+    const token = await this.getAuthToken();
+
+    logger.info(`Batch deleting ${ids.length} signals`);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ids }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error('Batch delete error:', response.status, errorText);
+      throw new Error(`API error: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+
+    if (result.success && result.data) {
+      logger.info(`Batch deleted ${result.data.deleted}/${result.data.total} signals`);
+      return result.data;
+    }
+
+    throw new Error('Invalid API response');
+  }
+
+  /**
    * 获取认证 token
    */
   private async getAuthToken(): Promise<string> {

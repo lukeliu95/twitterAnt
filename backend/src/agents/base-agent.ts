@@ -4,10 +4,10 @@
  */
 
 import { AI_CONFIG } from '../config/ai.js';
-import type { TweetData, Signal } from '../types/index.js';
+import type { TweetData, Signal, SignalType } from '../types/index.js';
 
 export interface AnalysisResult {
-  type: 'demand' | 'revenue' | 'skill' | 'trend';
+  type: SignalType;
   score: number;
   summary: string;
   description: string;

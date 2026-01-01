@@ -81,9 +81,23 @@ export interface Signal {
   saved?: boolean;
   /** 是否已行动 */
   acted?: boolean;
+  /** 用户备注 */
+  userNotes?: string;
 }
 
-export type SignalType = 'demand' | 'revenue' | 'skill' | 'trend';
+export type SignalType =
+  // 新版 - 热门议题类型
+  | 'viral'           // 爆发话题
+  | 'insightful'      // 深度讨论
+  | 'data_driven'     // 数据观点
+  | 'industry_news'   // 行业动态
+  | 'controversial';  // 争议议题
+
+// 旧版 - 赚钱类类型（保留用于向后兼容）
+// | 'demand'
+// | 'revenue'
+// | 'skill'
+// | 'trend';
 
 /**
  * 用户反馈类型

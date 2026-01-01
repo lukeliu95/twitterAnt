@@ -50,6 +50,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         .catch((error) => sendResponse({ error: error.message }));
       return true; // 异步响应
 
+    case 'UPDATE_NOTES':
+      handleUpdateNotes(message.data)
+        .then(() => sendResponse({ success: true }))
+        .catch((error) => sendResponse({ error: error.message }));
+      return true; // 异步响应
+
+    case 'BATCH_DELETE_SIGNALS':
+      handleBatchDeleteSignals(message.data)
+        .then((result) => sendResponse({ success: true, data: result }))
+        .catch((error) => sendResponse({ error: error.message }));
+      return true; // 异步响应
+
     default:
       logger.warn('Unknown message type:', message.type);
       sendResponse({ error: 'Unknown message type' });
@@ -129,6 +141,39 @@ async function handleDeleteSignal(data?: { signalId: string }): Promise<void> {
 }
 
 /**
+ * 处理更新备注
+ */
+async function handleUpdateNotes(data?: { signalId: string; notes: string }): Promise<void> {
+  try {
+    if (!data || !data.signalId) {
+      throw new Error('Invalid signal data');
+    }
+    await backendAPI.updateNotes(data.signalId, data.notes || '');
+    logger.info(`Notes updated for signal ${data.signalId}`);
+  } catch (error) {
+    logger.error('Failed to update notes:', error);
+    throw error;
+  }
+}
+
+/**
+ * 处理批量删除信号
+ */
+async function handleBatchDeleteSignals(data?: { ids: string[] }): Promise<{ deleted: number; total: number }> {
+  try {
+    if (!data || !Array.isArray(data.ids) || data.ids.length === 0) {
+      throw new Error('Invalid signal data');
+    }
+    const result = await backendAPI.batchDeleteSignals(data.ids);
+    logger.info(`Batch deleted ${result.deleted}/${result.total} signals`);
+    return result;
+  } catch (error) {
+    logger.error('Failed to batch delete signals:', error);
+    throw error;
+  }
+}
+
+/**
  * 设置默认配置
  */
 function setupDefaultConfig(): void {
@@ -144,6 +189,19 @@ function setupDefaultConfig(): void {
     }
   });
 }
+
+/**
+ * 监听插件图标点击 - 打开 Side Panel
+ */
+chrome.action.onClicked.addListener(async (tab) => {
+  try {
+    // 打开侧边栏
+    await chrome.sidePanel.open({ windowId: tab.windowId });
+    logger.info('Side panel opened from icon click');
+  } catch (error) {
+    logger.error('Failed to open side panel:', error);
+  }
+});
 
 /**
  * 监听插件安装/更新

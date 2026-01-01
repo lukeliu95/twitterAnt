@@ -13,6 +13,9 @@ import { serve } from '@hono/node-server';
 import { getDatabase } from './database/schema.js';
 import { signalDAO } from './database/signal-dao.js';
 
+// 导入中间件
+import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
+
 // 导入路由
 import tweetsRouter from './routes/tweets';
 import signalsRouter from './routes/signals';
@@ -23,9 +26,10 @@ const app = new Hono();
 
 // 中间件
 app.use('*', logger());
+app.use('*', errorHandler);
 app.use('*', cors({
   origin: '*', // 允许任何来源，包括 chrome-extension://
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
@@ -34,7 +38,7 @@ app.use('*', cors({
 app.options('*', (c) => {
   return c.newResponse('', 204, {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Max-Age': '86400',
   });
@@ -60,27 +64,7 @@ app.route('/api/v1/signals', signalsRouter);
 app.route('/api/v1/feedback', feedbackRouter);
 
 // 404 处理
-app.notFound((c) => {
-  return c.json({
-    success: false,
-    error: {
-      code: 'NOT_FOUND',
-      message: 'Endpoint not found',
-    },
-  }, 404);
-});
-
-// 错误处理
-app.onError((err, c) => {
-  console.error('Server error:', err);
-  return c.json({
-    success: false,
-    error: {
-      code: 'INTERNAL_ERROR',
-      message: err.message || 'Internal server error',
-    },
-  }, 500);
-});
+app.notFound(notFoundHandler);
 
 // 启动服务器
 const port = parseInt(process.env.PORT || '3001');

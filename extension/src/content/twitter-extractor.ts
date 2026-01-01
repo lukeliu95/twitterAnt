@@ -96,18 +96,46 @@ function handleNewTweet(
 }
 
 /**
+ * 检查扩展上下文是否有效
+ */
+function isExtensionContextValid(): boolean {
+  try {
+    // 尝试访问 runtime.id，如果上下文无效会抛出错误
+    return chrome.runtime && chrome.runtime.id !== undefined;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 发送推文到 Background Service Worker
  */
 function sendTweetToBackground(tweet: TweetData): void {
+  // 检查扩展上下文是否有效
+  if (!isExtensionContextValid()) {
+    logger.debug('Extension context invalidated, skipping message send');
+    return;
+  }
+
   try {
     chrome.runtime.sendMessage({
       type: 'NEW_TWEET',
       data: tweet,
-    }).catch((error) => {
+    }).catch((error: Error) => {
+      // 检查是否是上下文失效错误
+      if (error.message.includes('Extension context invalidated') ||
+          error.message.includes('message port closed')) {
+        logger.debug('Extension context invalidated, skipping until page refresh');
+        return;
+      }
       logger.error('Failed to send tweet to background:', error);
     });
   } catch (error) {
-    logger.error('Error sending message:', error);
+    // 静默处理上下文失效错误
+    const err = error as Error;
+    if (!err.message.includes('Extension context invalidated')) {
+      logger.error('Error sending message:', error);
+    }
   }
 }
 

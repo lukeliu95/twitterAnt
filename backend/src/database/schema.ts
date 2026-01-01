@@ -68,9 +68,17 @@ export async function initDatabase(): Promise<Database> {
       expires_at TEXT NOT NULL,
       is_saved INTEGER DEFAULT 0 CHECK(is_saved IN (0, 1)),
       saved_at TEXT,
+      user_notes TEXT DEFAULT '',
       UNIQUE(tweet_id)
     );
   `);
+
+  // 如果 user_notes 列不存在（向后兼容），添加它
+  try {
+    db.run(`ALTER TABLE signals ADD COLUMN user_notes TEXT DEFAULT '';`);
+  } catch (e) {
+    // 列已存在，忽略错误
+  }
 
   // 创建索引
   db.run(`CREATE INDEX IF NOT EXISTS idx_signals_type ON signals(type);`);

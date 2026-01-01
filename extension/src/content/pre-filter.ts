@@ -56,7 +56,7 @@ export class PreFilter {
   private matchKeywords(text: string): boolean {
     for (const category in SIGNAL_KEYWORDS) {
       const keywords = SIGNAL_KEYWORDS[category as keyof typeof SIGNAL_KEYWORDS];
-      if (this.matchAnyKeyword(text, keywords)) {
+      if (keywords && this.matchAnyKeyword(text, keywords)) {
         return true;
       }
     }

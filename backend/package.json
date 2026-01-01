@@ -7,6 +7,8 @@
     "dev": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "repair-data": "tsx src/scripts/repair-data.ts",
+    "extend-expiry": "tsx src/scripts/extend-expiry.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"

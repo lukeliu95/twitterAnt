@@ -20,6 +20,10 @@ let currentView: 'all' | 'saved' = 'all';
 let currentFilter: string = 'all';
 let expandedSignals: Set<string> = new Set();
 let translatedSignals: Set<string> = new Set();
+let editingNotes: Set<string> = new Set(); // 正在编辑备注的信号
+let notesText: Map<string, string> = new Map(); // 备注文本缓存
+let selectedForDelete: Set<string> = new Set(); // 选中的删除项
+let isDeleteMode = false; // 是否处于删除模式
 
 // DOM 元素
 const app = document.getElementById('app');
@@ -162,16 +166,32 @@ function renderSignals(): void {
 function renderHeader(): string {
   const savedCount = signals.filter(s => s.saved).length;
   const totalCount = signals.length;
+  const hasSaved = savedCount > 0;
 
   return `
     <div class="header">
-      <div class="header-tabs">
-        <button class="tab-btn ${currentView === 'all' ? 'active' : ''}" onclick="switchView('all')">
-          全部 <span class="count">${totalCount}</span>
-        </button>
-        <button class="tab-btn ${currentView === 'saved' ? 'active' : ''}" onclick="switchView('saved')">
-          已保存 <span class="count">${savedCount}</span>
-        </button>
+      <div class="header-top">
+        <div class="header-tabs">
+          <button class="tab-btn ${currentView === 'all' ? 'active' : ''}" onclick="switchView('all')">
+            全部 <span class="count">${totalCount}</span>
+          </button>
+          <button class="tab-btn ${currentView === 'saved' ? 'active' : ''}" onclick="switchView('saved')">
+            已保存 <span class="count">${savedCount}</span>
+          </button>
+        </div>
+
+        <div class="header-actions">
+          ${hasSaved ? `
+            <button class="action-btn ${isDeleteMode ? 'danger' : ''}" onclick="toggleDeleteMode()" title="${isDeleteMode ? '取消' : '删除'}">
+              ${isDeleteMode ? '✕ 取消' : '🗑️ 删除'}
+            </button>
+          ` : ''}
+          <button class="refresh-btn" onclick="manualRefresh()">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       ${currentView === 'all' ? `
@@ -184,11 +204,14 @@ function renderHeader(): string {
         </div>
       ` : ''}
 
-      <button class="refresh-btn" onclick="manualRefresh()">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-      </button>
+      ${isDeleteMode ? `
+        <div class="delete-actions">
+          <span class="selected-count">已选 ${selectedForDelete.size} 项</span>
+          <button class="btn-danger" onclick="batchDelete()" ${selectedForDelete.size === 0 ? 'disabled' : ''}>
+            删除选中 (${selectedForDelete.size})
+          </button>
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -197,14 +220,28 @@ function renderHeader(): string {
  * 渲染单个信号卡片
  */
 function renderSignalCard(signal: Signal): string {
-  const typeLabels = {
+  const typeLabels: Record<string, string> = {
+    // 新版 - 热门议题
+    viral: '🔥 爆发话题',
+    insightful: '💡 深度讨论',
+    data_driven: '📊 数据观点',
+    industry_news: '🎯 行业动态',
+    controversial: '⚡ 争议议题',
+    // 旧版 - 向后兼容
     demand: '需求缺口',
     revenue: '收入验证',
     skill: '技能需求',
     trend: '趋势机会',
   };
 
-  const typeColors = {
+  const typeColors: Record<string, string> = {
+    // 新版 - 热门议题
+    viral: '#ff6b35',
+    insightful: '#4ecdc4',
+    data_driven: '#45b7d1',
+    industry_news: '#96ceb4',
+    controversial: '#ffeaa7',
+    // 旧版 - 向后兼容
     demand: '#1fa1f1',
     revenue: '#17bf63',
     skill: '#ffd700',
@@ -215,6 +252,15 @@ function renderSignalCard(signal: Signal): string {
   const isExpanded = expandedSignals.has(signal.id);
   const isSaved = signal.saved || false;
   const isTranslated = translatedSignals.has(signal.id);
+  const isEditingNotes = editingNotes.has(signal.id);
+  const isSelected = selectedForDelete.has(signal.id);
+
+  // 获取备注文本
+  const currentNotes = notesText.get(signal.id) || signal.userNotes || '';
+  // 缓存备注
+  if (!notesText.has(signal.id) && signal.userNotes) {
+    notesText.set(signal.id, signal.userNotes);
+  }
 
   // 格式化本地时间
   const createdDate = new Date(signal.createdAt);
@@ -226,7 +272,18 @@ function renderSignalCard(signal: Signal): string {
   });
 
   return `
-    <div class="signal-card ${isSaved ? 'saved' : ''}" data-signal-id="${signal.id}">
+    <div class="signal-card ${isSaved ? 'saved' : ''} ${isSelected ? 'selected' : ''}" data-signal-id="${signal.id}">
+      <!-- 删除模式复选框 -->
+      ${isDeleteMode ? `
+        <label class="checkbox-wrapper">
+          <input type="checkbox" class="delete-checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelect('${signal.id}')">
+          <span class="checkmark"></span>
+        </label>
+      ` : ''}
+
+      <!-- 收藏标签徽章 -->
+      ${isSaved ? '<div class="saved-badge">🔥 已收藏</div>' : ''}
+
       <!-- 顶部：类型标签、时间、评分、书签图标 -->
       <div class="card-header">
         <div class="header-left">
@@ -257,6 +314,23 @@ function renderSignalCard(signal: Signal): string {
           <p class="detail-item"><strong>匹配技能：</strong>${signal.matchedSkills?.join(', ') || '暂无'}</p>
           <p class="detail-item"><strong>竞争程度：</strong>${signal.competition || '暂无分析'}</p>
 
+          <!-- 备注区域 -->
+          <div class="notes-section">
+            <div class="notes-header">
+              <strong>📝 我的备注</strong>
+            </div>
+            ${isEditingNotes ? `
+              <textarea class="notes-textarea" placeholder="添加你的备注..." oninput="updateNotesText('${signal.id}', this.value)">${currentNotes}</textarea>
+              <div class="notes-actions">
+                <button class="btn-small" onclick="cancelEditNotes('${signal.id}')">取消</button>
+                <button class="btn-small btn-primary" onclick="saveNotes('${signal.id}')">保存</button>
+              </div>
+            ` : `
+              <p class="notes-content" onclick="startEditNotes('${signal.id}')">${currentNotes || '点击添加备注...'}</p>
+              ${currentNotes ? '<button class="btn-edit" onclick="startEditNotes(\'' + signal.id + '\')">编辑</button>' : ''}
+            `}
+          </div>
+
           <!-- 原推文区域 -->
           <div class="tweet-box">
             <div class="tweet-header">
@@ -268,6 +342,11 @@ function renderSignalCard(signal: Signal): string {
             <p class="tweet-text">${isTranslated ? translateText(signal.originalTweet.text) : signal.originalTweet.text}</p>
             <a href="${signal.originalTweet.url}" target="_blank" class="tweet-link">查看推文 →</a>
           </div>
+
+          <!-- 删除按钮 -->
+          <button class="btn-delete" onclick="deleteSignal('${signal.id}')">
+            🗑️ 删除此信号
+          </button>
         </div>
       ` : ''}
 
@@ -361,6 +440,143 @@ function manualRefresh(): void {
 }
 
 /**
+ * 切换删除模式
+ */
+function toggleDeleteMode(): void {
+  isDeleteMode = !isDeleteMode;
+  if (!isDeleteMode) {
+    selectedForDelete.clear();
+  }
+  renderSignals();
+}
+
+/**
+ * 切换选中状态
+ */
+function toggleSelect(signalId: string): void {
+  if (selectedForDelete.has(signalId)) {
+    selectedForDelete.delete(signalId);
+  } else {
+    selectedForDelete.add(signalId);
+  }
+  renderSignals();
+}
+
+/**
+ * 批量删除
+ */
+async function batchDelete(): Promise<void> {
+  if (selectedForDelete.size === 0) return;
+
+  const confirmed = confirm(`确定要删除选中的 ${selectedForDelete.size} 个信号吗？`);
+  if (!confirmed) return;
+
+  try {
+    const ids = Array.from(selectedForDelete);
+
+    const response = await chrome.runtime.sendMessage({
+      type: 'BATCH_DELETE_SIGNALS',
+      data: { ids },
+    });
+
+    if (response && response.success) {
+      logger.info(`Batch deleted ${response.data.deleted} signals`);
+      selectedForDelete.clear();
+      isDeleteMode = false;
+      loadSignals();
+    } else {
+      alert('删除失败：' + (response?.error?.message || '未知错误'));
+    }
+  } catch (error) {
+    logger.error('Failed to batch delete:', error);
+    alert('删除失败：' + (error instanceof Error ? error.message : '未知错误'));
+  }
+}
+
+/**
+ * 删除单个信号
+ */
+async function deleteSignal(signalId: string): Promise<void> {
+  const confirmed = confirm('确定要删除这个信号吗？');
+  if (!confirmed) return;
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'DELETE_SIGNAL',
+      data: { signalId },
+    });
+
+    if (response && response.success) {
+      logger.info(`Deleted signal ${signalId}`);
+      loadSignals();
+    } else {
+      alert('删除失败：' + (response?.error?.message || '未知错误'));
+    }
+  } catch (error) {
+    logger.error('Failed to delete signal:', error);
+    alert('删除失败：' + (error instanceof Error ? error.message : '未知错误'));
+  }
+}
+
+/**
+ * 开始编辑备注
+ */
+function startEditNotes(signalId: string): void {
+  editingNotes.add(signalId);
+  renderSignals();
+}
+
+/**
+ * 取消编辑备注
+ */
+function cancelEditNotes(signalId: string): void {
+  editingNotes.delete(signalId);
+  // 恢复原值
+  const signal = signals.find(s => s.id === signalId);
+  if (signal) {
+    notesText.set(signalId, signal.userNotes || '');
+  }
+  renderSignals();
+}
+
+/**
+ * 更新备注文本
+ */
+function updateNotesText(signalId: string, text: string): void {
+  notesText.set(signalId, text);
+}
+
+/**
+ * 保存备注
+ */
+async function saveNotes(signalId: string): Promise<void> {
+  const notes = notesText.get(signalId) || '';
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'UPDATE_NOTES',
+      data: { signalId, notes },
+    });
+
+    if (response && response.success) {
+      logger.info(`Updated notes for signal ${signalId}`);
+      // 更新本地信号数据
+      const signal = signals.find(s => s.id === signalId);
+      if (signal) {
+        signal.userNotes = notes;
+      }
+      editingNotes.delete(signalId);
+      renderSignals();
+    } else {
+      alert('保存失败：' + (response?.error?.message || '未知错误'));
+    }
+  } catch (error) {
+    logger.error('Failed to save notes:', error);
+    alert('保存失败：' + (error instanceof Error ? error.message : '未知错误'));
+  }
+}
+
+/**
  * 启动自动刷新
  */
 function startAutoRefresh(): void {
@@ -416,6 +632,75 @@ function getStyles(): string {
         top: 0;
         background: #000;
         z-index: 10;
+      }
+
+      .header-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: ${currentView === 'all' ? '12px' : '0'};
+      }
+
+      .header-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .action-btn {
+        padding: 6px 12px;
+        background: transparent;
+        border: 1px solid #2f3336;
+        border-radius: 20px;
+        color: #71767b;
+        cursor: pointer;
+        font-size: 13px;
+        transition: all 0.2s;
+      }
+
+      .action-btn:hover {
+        background: #16181c;
+        color: #e7e9ea;
+      }
+
+      .action-btn.danger {
+        border-color: #f91880;
+        color: #f91880;
+      }
+
+      .action-btn.danger:hover {
+        background: #f91880;
+        color: #fff;
+      }
+
+      .delete-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        background: #16181c;
+        border-radius: 8px;
+        margin-top: 8px;
+      }
+
+      .selected-count {
+        font-size: 13px;
+        color: #f91880;
+      }
+
+      .btn-danger {
+        padding: 6px 12px;
+        background: #f91880;
+        border: none;
+        border-radius: 4px;
+        color: #fff;
+        cursor: pointer;
+        font-size: 13px;
+      }
+
+      .btn-danger:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
       }
 
       .header-tabs {
@@ -478,9 +763,6 @@ function getStyles(): string {
       }
 
       .refresh-btn {
-        position: absolute;
-        top: 12px;
-        right: 16px;
         padding: 6px;
         background: transparent;
         border: none;
@@ -507,14 +789,90 @@ function getStyles(): string {
         margin-bottom: 12px;
         border: 1px solid #2f3336;
         transition: all 0.2s;
+        position: relative;
       }
 
       .signal-card.saved {
         border-color: #f91880;
+        background: linear-gradient(135deg, #16181c 0%, #1a0d12 100%);
+      }
+
+      .signal-card.selected {
+        border-color: #1d9bf0;
+        background: rgba(29, 155, 240, 0.05);
       }
 
       .signal-card:hover {
         background: #1d1f23;
+      }
+
+      /* 收藏标签徽章 */
+      .saved-badge {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        background: linear-gradient(135deg, #f91880, #e0245e);
+        color: #fff;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        z-index: 1;
+      }
+
+      /* 删除复选框 */
+      .checkbox-wrapper {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        z-index: 2;
+      }
+
+      .checkbox-wrapper input {
+        position: absolute;
+        opacity: 0;
+        cursor: pointer;
+        height: 0;
+        width: 0;
+      }
+
+      .checkmark {
+        height: 20px;
+        width: 20px;
+        background-color: #2f3336;
+        border: 2px solid #71767b;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+      }
+
+      .checkbox-wrapper:hover .checkmark {
+        border-color: #1d9bf0;
+      }
+
+      .checkbox-wrapper input:checked ~ .checkmark {
+        background-color: #f91880;
+        border-color: #f91880;
+      }
+
+      .checkmark:after {
+        content: "";
+        display: none;
+        width: 5px;
+        height: 10px;
+        border: solid white;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+        margin-top: -2px;
+      }
+
+      .checkbox-wrapper input:checked ~ .checkmark:after {
+        display: block;
       }
 
       .card-header {
@@ -522,6 +880,7 @@ function getStyles(): string {
         justify-content: space-between;
         align-items: center;
         margin-bottom: 12px;
+        padding-right: 30px;
       }
 
       .header-left {
@@ -611,6 +970,119 @@ function getStyles(): string {
         line-height: 1.6;
       }
 
+      /* 备注区域样式 */
+      .notes-section {
+        margin-top: 12px;
+        padding: 12px;
+        background: rgba(29, 155, 240, 0.05);
+        border-radius: 8px;
+        border: 1px solid rgba(29, 155, 240, 0.2);
+      }
+
+      .notes-header {
+        font-size: 13px;
+        color: #1d9bf0;
+        margin-bottom: 8px;
+      }
+
+      .notes-content {
+        font-size: 13px;
+        color: #e7e9ea;
+        min-height: 40px;
+        padding: 8px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+
+      .notes-content:hover {
+        background: rgba(0, 0, 0, 0.5);
+      }
+
+      .notes-content:empty::before {
+        content: "点击添加备注...";
+        color: #71767b;
+      }
+
+      .notes-textarea {
+        width: 100%;
+        min-height: 80px;
+        padding: 8px;
+        background: #000;
+        border: 1px solid #2f3336;
+        border-radius: 4px;
+        color: #e7e9ea;
+        font-size: 13px;
+        font-family: inherit;
+        resize: vertical;
+      }
+
+      .notes-textarea:focus {
+        outline: none;
+        border-color: #1d9bf0;
+      }
+
+      .notes-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+        justify-content: flex-end;
+      }
+
+      .btn-small {
+        padding: 6px 12px;
+        background: transparent;
+        border: 1px solid #2f3336;
+        border-radius: 4px;
+        color: #71767b;
+        cursor: pointer;
+        font-size: 12px;
+      }
+
+      .btn-small:hover {
+        background: #16181c;
+      }
+
+      .btn-small.btn-primary {
+        background: #1d9bf0;
+        border-color: #1d9bf0;
+        color: #fff;
+      }
+
+      .btn-small.btn-primary:hover {
+        background: #1a8cd8;
+      }
+
+      .btn-edit {
+        margin-top: 4px;
+        padding: 4px 8px;
+        background: transparent;
+        border: none;
+        color: #1d9bf0;
+        cursor: pointer;
+        font-size: 11px;
+      }
+
+      /* 删除按钮样式 */
+      .btn-delete {
+        width: 100%;
+        margin-top: 12px;
+        padding: 8px;
+        background: transparent;
+        border: 1px solid #f91880;
+        border-radius: 4px;
+        color: #f91880;
+        cursor: pointer;
+        font-size: 13px;
+        transition: all 0.2s;
+      }
+
+      .btn-delete:hover {
+        background: #f91880;
+        color: #fff;
+      }
+
       .tweet-box {
         margin-top: 12px;
         padding: 12px;
@@ -695,6 +1167,14 @@ function getStyles(): string {
 (window as any).switchView = switchView;
 (window as any).setFilter = setFilter;
 (window as any).manualRefresh = manualRefresh;
+(window as any).toggleDeleteMode = toggleDeleteMode;
+(window as any).toggleSelect = toggleSelect;
+(window as any).batchDelete = batchDelete;
+(window as any).deleteSignal = deleteSignal;
+(window as any).startEditNotes = startEditNotes;
+(window as any).cancelEditNotes = cancelEditNotes;
+(window as any).updateNotesText = updateNotesText;
+(window as any).saveNotes = saveNotes;
 
 // 页面加载时获取信号
 loadSignals();

@@ -1,51 +1,48 @@
 /**
- * Orchestrator Agent
- * 负责协调和调度各个专项 Agent
+ * Orchestrator Agent - 重构版
+ * 负责识别用户时间线上最热门、最有价值的讨论
+ *
+ * 设计原则 (Alan Cooper):
+ * - 用户目标：不错过重要讨论
+ * - 核心价值：发现热门议题，获取社交资本
+ * - 交互原则：快速、准确、有价值
  */
 
 import type { AnalysisResult } from './base-agent.js';
-import { DemandGapAgent } from './demand-gap-agent.js';
-import { RevenueProofAgent } from './revenue-proof-agent.js';
-import { SkillMatchAgent } from './skill-match-agent.js';
-import { TrendAgent } from './trend-agent.js';
-import type { TweetData, Signal } from '../types/index.js';
+import { ViralAgent } from './viral-agent.js';
+import { InsightfulAgent } from './insightful-agent.js';
+import { DataDrivenAgent } from './data-driven-agent.js';
+import { IndustryNewsAgent } from './industry-news-agent.js';
+import { ControversialAgent } from './controversial-agent.js';
+import type { TweetData, Signal, SignalType } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { AI_CONFIG } from '../config/ai.js';
-
-const ORCHESTRATOR_SYSTEM_PROMPT = `你是一个智能信号协调器，负责判断 Twitter 推文是否包含赚钱机会。
-
-你的任务：
-1. 快速判断推文是否值得深入分析
-2. 如果值得，将推文分配给最合适的专项 Agent
-3. 如果不值得，返回 null
-
-赚钱机会类型：
-- demand: 需求缺口 - 人们在寻找解决方案
-- revenue: 收入验证 - 真实的收入分享
-- skill: 技能需求 - 市场对特定技能的需求
-- trend: 趋势机会 - 新兴趋势和机会
-
-返回 JSON 格式：
-{
-  "shouldAnalyze": true/false,
-  "recommendedAgent": "demand" | "revenue" | "skill" | "trend",
-  "reason": "简短说明原因"
-}`;
+import {
+  ORCHESTRATOR_SYSTEM_PROMPT,
+  SIGNAL_TYPES,
+  PREFILTER_RULES,
+  HOT_TOPIC_KEYWORDS,
+  calculateRawViralityScore,
+  adjustForAuthorInfluence,
+  getViralityTier,
+} from '../config/signal-rules.js';
 
 export class OrchestratorAgent {
   protected readonly config = AI_CONFIG;
-  private demandAgent: DemandGapAgent;
-  private revenueAgent: RevenueProofAgent;
-  private skillAgent: SkillMatchAgent;
-  private trendAgent: TrendAgent;
+
+  // 新的专项 Agent
+  private viralAgent: ViralAgent;
+  private insightfulAgent: InsightfulAgent;
+  private dataDrivenAgent: DataDrivenAgent;
+  private industryNewsAgent: IndustryNewsAgent;
+  private controversialAgent: ControversialAgent;
 
   constructor() {
-
-    // 初始化专项 Agent
-    this.demandAgent = new DemandGapAgent();
-    this.revenueAgent = new RevenueProofAgent();
-    this.skillAgent = new SkillMatchAgent();
-    this.trendAgent = new TrendAgent();
+    this.viralAgent = new ViralAgent();
+    this.insightfulAgent = new InsightfulAgent();
+    this.dataDrivenAgent = new DataDrivenAgent();
+    this.industryNewsAgent = new IndustryNewsAgent();
+    this.controversialAgent = new ControversialAgent();
   }
 
   /**
@@ -62,13 +59,13 @@ export class OrchestratorAgent {
       }
 
       // 分配给推荐的 Agent
-      const agent = this.getAgent(decision.recommendedAgent || 'demand');
+      const agent = this.getAgent(decision.recommendedType || SIGNAL_TYPES.VIRAL);
       if (!agent) {
-        logger.warn(`[Orchestrator] Unknown agent type: ${decision.recommendedAgent}`);
+        logger.warn(`[Orchestrator] Unknown agent type: ${decision.recommendedType}`);
         return null;
       }
 
-      logger.info(`[Orchestrator] Delegating tweet ${tweet.id} to ${decision.recommendedAgent} agent`);
+      logger.info(`[Orchestrator] Delegating tweet ${tweet.id} to ${decision.recommendedType} agent`);
 
       // 让专项 Agent 分析
       const result = await agent.analyze(tweet);
@@ -90,42 +87,73 @@ export class OrchestratorAgent {
    */
   private async shouldAnalyze(tweet: TweetData): Promise<{
     shouldAnalyze: boolean;
-    recommendedAgent?: string;
+    recommendedType?: string;
     reason: string;
   }> {
-    // 快速过滤：太短的推文直接跳过
-    if (tweet.text.length < 30) {
+    // 1. 前端过滤规则
+    if (tweet.text.length < PREFILTER_RULES.minTextLength) {
       return { shouldAnalyze: false, reason: '推文太短' };
     }
 
-    // 转推直接跳过
-    if (tweet.type === 'retweet') {
-      return { shouldAnalyze: false, reason: '转推内容' };
+    if (PREFILTER_RULES.excludeTypes.includes(tweet.type as any)) {
+      return { shouldAnalyze: false, reason: '排除的推文类型' };
     }
 
-    // 构建判断提示
-    const prompt = this.buildJudgmentPrompt(tweet);
+    // 2. 计算热度分数
+    const rawScore = calculateRawViralityScore(
+      tweet.engagement.likes,
+      tweet.engagement.retweets,
+      tweet.engagement.replies,
+      tweet.engagement.views
+    );
 
+    const adjustedScore = adjustForAuthorInfluence(
+      rawScore,
+      tweet.author.verified,
+      tweet.author.followerCount
+    );
+
+    const viralityTier = getViralityTier(adjustedScore);
+
+    // 3. 应用热度阈值
+    const thresholds = PREFILTER_RULES.engagementThresholds;
+
+    // 大 V 的推文降低阈值
+    const thresholdDivisor =
+      tweet.author.followerCount >= PREFILTER_RULES.bigFollowerThreshold ? 5 : 1;
+
+    // 检查是否达到阈值
+    const meetsThreshold =
+      tweet.engagement.likes >= thresholds.likes / thresholdDivisor ||
+      tweet.engagement.retweets >= thresholds.retweets ||
+      tweet.engagement.replies >= thresholds.replies;
+
+    if (!meetsThreshold && viralityTier === 'minimal') {
+      return { shouldAnalyze: false, reason: '热度不足' };
+    }
+
+    // 4. 尝试 AI 判断
+    const prompt = this.buildJudgmentPrompt(tweet, viralityTier);
     try {
       const response = await this.callClaude(prompt);
       const result = this.parseJSONResponse(response);
 
       return {
         shouldAnalyze: result.shouldAnalyze || false,
-        recommendedAgent: result.recommendedAgent,
+        recommendedType: result.recommendedType,
         reason: result.reason || '',
       };
     } catch (error) {
       // AI 判断失败时，使用规则回退
-      return this.fallbackJudgment(tweet);
+      return this.fallbackJudgment(tweet, viralityTier);
     }
   }
 
   /**
    * 构建判断提示
    */
-  private buildJudgmentPrompt(tweet: TweetData): string {
-    return `请分析以下 Twitter 推文是否包含赚钱机会：
+  private buildJudgmentPrompt(tweet: TweetData, viralityTier: string): string {
+    return `请分析以下 Twitter 推文是否是值得关注的热门讨论：
 
 推文内容：
 ${tweet.text}
@@ -139,6 +167,8 @@ ${tweet.text}
 - 点赞: ${tweet.engagement.likes}
 - 转发: ${tweet.engagement.retweets}
 - 回复: ${tweet.engagement.replies}
+- 浏览: ${tweet.engagement.views || 'N/A'}
+- 热度等级: ${viralityTier}
 
 请返回 JSON 格式的判断结果。`;
   }
@@ -146,77 +176,89 @@ ${tweet.text}
   /**
    * 规则回退判断（AI 失败时使用）
    */
-  private fallbackJudgment(tweet: TweetData): {
+  private fallbackJudgment(tweet: TweetData, viralityTier: string): {
     shouldAnalyze: boolean;
-    recommendedAgent?: string;
+    recommendedType?: string;
     reason: string;
   } {
     const text = tweet.text.toLowerCase();
 
-    // 收入验证关键词
-    if (text.includes('revenue') || text.includes('income') || text.includes('$') ||
-        text.includes('mrr') || text.includes('arr') || text.includes('赚') ||
-        text.includes('收入')) {
+    // 根据关键词判断类型
+    for (const [category, keywords] of Object.entries(HOT_TOPIC_KEYWORDS)) {
+      for (const keyword of keywords) {
+        if (text.includes(keyword.toLowerCase())) {
+          let type: SignalType = SIGNAL_TYPES.INSIGHTFUL;
+          let reason = `包含 ${category} 关键词`;
+
+          // 根据类别映射到信号类型
+          switch (category) {
+            case 'tech':
+            case 'industry':
+              type = SIGNAL_TYPES.INDUSTRY_NEWS as any;
+              break;
+            case 'data':
+              type = SIGNAL_TYPES.DATA_DRIVEN as any;
+              break;
+            case 'discussion':
+              type = SIGNAL_TYPES.CONTROVERSIAL as any;
+              break;
+            case 'opinion':
+            case 'tutorial':
+              type = SIGNAL_TYPES.INSIGHTFUL as any;
+              break;
+          }
+
+          return {
+            shouldAnalyze: true,
+            recommendedType: type,
+            reason,
+          };
+        }
+      }
+    }
+
+    // 高热度推文默认为爆发话题
+    if (viralityTier === 'viral' || viralityTier === 'high') {
       return {
         shouldAnalyze: true,
-        recommendedAgent: 'revenue',
-        reason: '包含收入验证关键词',
+        recommendedType: SIGNAL_TYPES.VIRAL,
+        reason: '高热度内容',
       };
     }
 
-    // 需求缺口关键词
-    if (text.includes('looking for') || text.includes('need') || text.includes('want') ||
-        text.includes('有没有') || text.includes('求') || text.includes('需要')) {
+    // 中等热度推文默认为深度讨论
+    if (viralityTier === 'significant' || viralityTier === 'notable') {
       return {
         shouldAnalyze: true,
-        recommendedAgent: 'demand',
-        reason: '包含需求缺口关键词',
+        recommendedType: SIGNAL_TYPES.INSIGHTFUL,
+        reason: '中等热度有价值内容',
       };
     }
 
-    // 技能需求关键词
-    if (text.includes('hiring') || text.includes('freelancer') || text.includes('招聘')) {
-      return {
-        shouldAnalyze: true,
-        recommendedAgent: 'skill',
-        reason: '包含技能需求关键词',
-      };
-    }
-
-    // 趋势机会关键词
-    if (text.includes('ai') || text.includes('gpt') || text.includes('trending')) {
-      return {
-        shouldAnalyze: true,
-        recommendedAgent: 'trend',
-        reason: '包含趋势关键词',
-      };
-    }
-
-    // 高互动推文仍然值得分析
-    if (tweet.engagement.likes > 100 || tweet.engagement.retweets > 50) {
-      return {
-        shouldAnalyze: true,
-        recommendedAgent: 'trend',
-        reason: '高互动内容',
-      };
-    }
-
-    return { shouldAnalyze: false, reason: '无明显信号特征' };
+    return { shouldAnalyze: false, reason: '无明显热门特征' };
   }
 
   /**
    * 获取指定的 Agent
    */
-  private getAgent(type: string): DemandGapAgent | RevenueProofAgent | SkillMatchAgent | TrendAgent | null {
+  private getAgent(type: string):
+    | ViralAgent
+    | InsightfulAgent
+    | DataDrivenAgent
+    | IndustryNewsAgent
+    | ControversialAgent
+    | null {
     switch (type) {
-      case 'demand':
-        return this.demandAgent;
-      case 'revenue':
-        return this.revenueAgent;
-      case 'skill':
-        return this.skillAgent;
-      case 'trend':
-        return this.trendAgent;
+      case SIGNAL_TYPES.VIRAL:
+        return this.viralAgent;
+      case SIGNAL_TYPES.INSIGHTFUL:
+        return this.insightfulAgent;
+      case SIGNAL_TYPES.DATA_DRIVEN:
+        return this.dataDrivenAgent;
+      case SIGNAL_TYPES.INDUSTRY_NEWS:
+        return this.industryNewsAgent;
+      case SIGNAL_TYPES.CONTROVERSIAL:
+        return this.controversialAgent;
       default:
         return null;
     }
@@ -226,6 +268,14 @@ ${tweet.text}
    * 构建 Signal 对象
    */
   private buildSignal(tweet: TweetData, result: AnalysisResult): Signal {
+    // 根据评分决定有效期
+    const expiryMs =
+      result.score >= 4
+        ? 14 * 24 * 60 * 60 * 1000 // 高分 14 天
+        : result.score <= 2
+        ? 3 * 24 * 60 * 60 * 1000 // 低分 3 天
+        : 7 * 24 * 60 * 60 * 1000; // 默认 7 天
+
     return {
       id: `sig_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       tweetId: tweet.id,
@@ -239,7 +289,7 @@ ${tweet.text}
       competition: result.competition,
       originalTweet: tweet,
       createdAt: new Date(),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 天后过期
+      expiresAt: new Date(Date.now() + expiryMs),
     };
   }
 

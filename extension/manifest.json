@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Money Signal",
-  "version": "0.1.0",
-  "description": "从 Twitter 中发现赚钱机会",
+  "name": "Trend Signal Free (TSF)",
+  "short_name": "趋势信号",
+  "version": "0.2.0",
+  "description": "趋势信号免费版 - 发现 Twitter 时间线上最热门的讨论和趋势",
 
   "permissions": [
     "storage",

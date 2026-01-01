@@ -26,6 +26,14 @@ signalsRouter.get('/', async (c) => {
     limit,
   });
 
+  console.log(`[API] Total signals from DB: ${signals.length}`);
+  if (signals.length > 0) {
+    const now = new Date();
+    console.log(`[API] Current time: ${now.toISOString()}`);
+    console.log(`[API] First signal expiry: ${signals[0].expiresAt.toISOString()}`);
+    console.log(`[API] Is expired: ${signals[0].expiresAt <= now}`);
+  }
+
   // 过滤过期信号
   const activeSignals = signals.filter(s => s.expiresAt > new Date());
 
@@ -148,6 +156,104 @@ signalsRouter.post('/cleanup', async (c) => {
     success: true,
     data: {
       deleted: deletedCount,
+    },
+  });
+});
+
+/**
+ * PATCH /api/v1/signals/:id/notes
+ * 更新用户备注
+ */
+signalsRouter.patch('/:id/notes', async (c) => {
+  const id = c.req.param('id');
+  const { notes } = await c.req.json();
+
+  if (!id) {
+    return c.json<APIResponse>({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Signal ID is required',
+      },
+    }, 400);
+  }
+
+  // 验证 notes 是字符串
+  if (notes !== null && notes !== undefined && typeof notes !== 'string') {
+    return c.json<APIResponse>({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Notes must be a string',
+      },
+    }, 400);
+  }
+
+  const updated = await signalDAO.updateNotes(id, notes || '');
+
+  if (!updated) {
+    return c.json<APIResponse>({
+      success: false,
+      error: {
+        code: 'SIGNAL_NOT_FOUND',
+        message: 'Signal not found',
+      },
+    }, 404);
+  }
+
+  console.log(`[API] Updated notes for signal ${id}`);
+
+  return c.json<APIResponse>({
+    success: true,
+    data: {
+      id,
+      notes: notes || '',
+    },
+  });
+});
+
+/**
+ * POST /api/v1/signals/batch-delete
+ * 批量删除信号
+ */
+signalsRouter.post('/batch-delete', async (c) => {
+  const { ids } = await c.req.json();
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return c.json<APIResponse>({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'IDs array is required',
+      },
+    }, 400);
+  }
+
+  let deleted = 0;
+  const errors: string[] = [];
+
+  for (const id of ids) {
+    if (typeof id !== 'string') {
+      errors.push(`Invalid ID: ${id}`);
+      continue;
+    }
+
+    const result = await signalDAO.delete(id);
+    if (result) {
+      deleted++;
+    } else {
+      errors.push(`Signal not found: ${id}`);
+    }
+  }
+
+  console.log(`[API] Batch deleted ${deleted}/${ids.length} signals`);
+
+  return c.json<APIResponse>({
+    success: true,
+    data: {
+      deleted,
+      total: ids.length,
+      errors: errors.length > 0 ? errors : undefined,
     },
   });
 });

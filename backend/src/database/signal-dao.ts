@@ -6,6 +6,8 @@
 
 import { getDatabase, saveDatabase } from './schema.js';
 import type { Signal } from '../types/index.js';
+import { logger } from '../utils/logger.js';
+import { SignalValidator } from '../utils/validator.js';
 
 export class SignalDAO {
   private db: Awaited<ReturnType<typeof getDatabase>> | null = null;
@@ -28,12 +30,14 @@ export class SignalDAO {
   /**
    * 插入或更新信号
    */
-  async upsert(signal: Signal): Promise<void> {
+  async upsert(signal: Partial<Signal>): Promise<void> {
+    // 在保存前验证和清理数据
+    const validatedSignal = SignalValidator.validate(signal);
     const db = await this.getDb();
 
     // 检查是否已存在
     const checkStmt = db.prepare('SELECT id FROM signals WHERE tweet_id = ?');
-    const existing = checkStmt.getAsObject([signal.tweetId]) as any;
+    const existing = checkStmt.getAsObject([validatedSignal.tweetId]) as any;
     checkStmt.free();
 
     if (existing && existing.id) {
@@ -46,17 +50,17 @@ export class SignalDAO {
         WHERE tweet_id = ?
       `);
       stmt.run([
-        signal.type,
-        signal.score,
-        signal.summary,
-        signal.description || '',
-        signal.reason || '',
-        JSON.stringify(signal.actionPlan || []),
-        JSON.stringify(signal.matchedSkills || []),
-        signal.competition || '',
-        JSON.stringify(signal.originalTweet),
-        signal.expiresAt.toISOString(),
-        signal.tweetId,
+        validatedSignal.type,
+        validatedSignal.score,
+        validatedSignal.summary,
+        validatedSignal.description || '',
+        validatedSignal.reason || '',
+        JSON.stringify(validatedSignal.actionPlan || []),
+        JSON.stringify(validatedSignal.matchedSkills || []),
+        validatedSignal.competition || '',
+        JSON.stringify(validatedSignal.originalTweet),
+        validatedSignal.expiresAt.toISOString(),
+        validatedSignal.tweetId,
       ]);
       stmt.free();
     } else {
@@ -70,21 +74,21 @@ export class SignalDAO {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       stmt.run([
-        signal.id,
-        signal.tweetId,
-        signal.type,
-        signal.score,
-        signal.summary,
-        signal.description || '',
-        signal.reason || '',
-        JSON.stringify(signal.actionPlan || []),
-        JSON.stringify(signal.matchedSkills || []),
-        signal.competition || '',
-        JSON.stringify(signal.originalTweet),
-        signal.createdAt.toISOString(),
-        signal.expiresAt.toISOString(),
-        signal.saved ? 1 : 0,
-        signal.saved ? new Date().toISOString() : null,
+        validatedSignal.id,
+        validatedSignal.tweetId,
+        validatedSignal.type,
+        validatedSignal.score,
+        validatedSignal.summary,
+        validatedSignal.description || '',
+        validatedSignal.reason || '',
+        JSON.stringify(validatedSignal.actionPlan || []),
+        JSON.stringify(validatedSignal.matchedSkills || []),
+        validatedSignal.competition || '',
+        JSON.stringify(validatedSignal.originalTweet),
+        validatedSignal.createdAt.toISOString(),
+        validatedSignal.expiresAt.toISOString(),
+        validatedSignal.saved ? 1 : 0,
+        validatedSignal.saved ? new Date().toISOString() : null,
       ]);
       stmt.free();
     }
@@ -127,13 +131,41 @@ export class SignalDAO {
       params.push(options.offset);
     }
 
-    const stmt = db.prepare(sql);
-    const results = stmt.getAsObject(params) as any;
-    stmt.free();
+    // 使用 exec() 来获取所有行
+    // 如果有参数，需要替换 SQL 中的占位符
+    let finalSql = sql;
+    let paramIndex = 0;
 
-    // sql.js returns either an array of rows or a single row
-    const rows = Array.isArray(results) ? results : (results ? [results] : []);
-    return rows.map(this.rowToSignal);
+    // 简单的参数替换（仅用于字符串和数字）
+    finalSql = sql.replace(/\?/g, () => {
+      const param = params[paramIndex++];
+      if (typeof param === 'string') {
+        return `'${param.replace(/'/g, "''")}'`;
+      }
+      return String(param);
+    });
+
+    const results = db.exec(finalSql);
+
+    // sql.js exec() 返回结果数组
+    if (!results || results.length === 0) {
+      return [];
+    }
+
+    // results[0].values 包含所有行数据
+    const columns = results[0].columns;
+    const values = results[0].values;
+
+    // 将值数组转换为对象数组
+    const rows = values.map(row => {
+      const obj: any = {};
+      columns.forEach((col, i) => {
+        obj[col] = row[i];
+      });
+      return obj;
+    });
+
+    return rows.map(row => this.rowToSignal(row));
   }
 
   /**
@@ -286,6 +318,40 @@ export class SignalDAO {
   }
 
   /**
+   * 安全的 JSON 解析辅助函数
+   * 处理 "undefined" 字符串、null、空字符串等边缘情况
+   */
+  private safeJSONParse<T>(value: any, defaultValue: T): T {
+    // 处理 null、undefined
+    if (value === null || value === undefined) {
+      return defaultValue;
+    }
+
+    // 处理空字符串
+    if (value === '') {
+      return defaultValue;
+    }
+
+    // 处理字符串 "undefined"
+    if (typeof value === 'string' && value === 'undefined') {
+      logger.warn(`Encountered string "undefined" in database, using default value`);
+      return defaultValue;
+    }
+
+    // 如果已经是解析后的对象（某些情况下），直接返回
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      return value as T;
+    }
+
+    try {
+      return JSON.parse(value) as T;
+    } catch (error) {
+      logger.warn(`JSON parse failed for value: "${value}", using default value`, error);
+      return defaultValue;
+    }
+  }
+
+  /**
    * 将数据库行转换为 Signal 对象
    */
   private rowToSignal(row: any): Signal {
@@ -297,14 +363,39 @@ export class SignalDAO {
       summary: row.summary,
       description: row.description || '',
       reason: row.reason || '',
-      actionPlan: JSON.parse(row.action_plan || '[]'),
-      matchedSkills: JSON.parse(row.matched_skills || '[]'),
+      actionPlan: this.safeJSONParse<string[]>(row.action_plan, []),
+      matchedSkills: this.safeJSONParse<string[]>(row.matched_skills, []),
       competition: row.competition || '',
-      originalTweet: JSON.parse(row.original_tweet),
+      originalTweet: this.safeJSONParse<any>(row.original_tweet, {}),
       createdAt: new Date(row.created_at),
       expiresAt: new Date(row.expires_at),
       saved: row.is_saved === 1,
+      userNotes: row.user_notes || '',
     };
+  }
+
+  /**
+   * 更新用户备注
+   */
+  async updateNotes(id: string, notes: string): Promise<boolean> {
+    const db = await this.getDb();
+
+    // 首先检查信号是否存在
+    const checkStmt = db.prepare('SELECT id FROM signals WHERE id = ?');
+    const existing = checkStmt.getAsObject([id]) as any;
+    checkStmt.free();
+
+    if (!existing || !existing.id) {
+      return false;
+    }
+
+    // 更新备注
+    const stmt = db.prepare('UPDATE signals SET user_notes = ? WHERE id = ?');
+    stmt.run([notes || '', id]);
+    stmt.free();
+
+    saveDatabase(db);
+    return true;
   }
 }
 
