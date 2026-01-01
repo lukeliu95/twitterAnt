@@ -46,10 +46,11 @@ export class MessageQueue<T> {
       return;
     }
 
-    this.flushTimer = window.setTimeout(() => {
+    // 使用 globalThis 以兼容 Service Worker 环境
+    this.flushTimer = globalThis.setTimeout(() => {
       this.flush();
       this.flushTimer = null;
-    }, this.flushInterval);
+    }, this.flushInterval) as unknown as number;
   }
 
   /**
@@ -93,7 +94,7 @@ export class MessageQueue<T> {
    */
   forceFlush(): void {
     if (this.flushTimer) {
-      clearTimeout(this.flushTimer);
+      globalThis.clearTimeout(this.flushTimer);
       this.flushTimer = null;
     }
     this.flush();
@@ -112,7 +113,7 @@ export class MessageQueue<T> {
   clear(): void {
     this.queue = [];
     if (this.flushTimer) {
-      clearTimeout(this.flushTimer);
+      globalThis.clearTimeout(this.flushTimer);
       this.flushTimer = null;
     }
   }

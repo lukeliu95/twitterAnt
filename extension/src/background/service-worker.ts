@@ -40,6 +40,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     case 'SEND_FEEDBACK':
       handleSendFeedback(message.data)
+        .then((shouldDelete) => sendResponse({ success: true, shouldDelete }))
+        .catch((error) => sendResponse({ error: error.message }));
+      return true; // 异步响应
+
+    case 'GET_SAVED_SIGNALS':
+      handleGetSavedSignals()
+        .then((savedIds) => sendResponse({ savedIds }))
+        .catch((error) => sendResponse({ error: error.message }));
+      return true; // 异步响应
+
+    case 'UNSAVE_SIGNAL':
+      handleUnsaveSignal(message.data)
+        .then(() => sendResponse({ success: true }))
+        .catch((error) => sendResponse({ error: error.message }));
+      return true; // 异步响应
+
+    case 'DELETE_SIGNAL':
+      handleDeleteSignal(message.data)
         .then(() => sendResponse({ success: true }))
         .catch((error) => sendResponse({ error: error.message }));
       return true; // 异步响应
@@ -55,9 +73,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 /**
  * 处理新推文
  */
-function handleNewTweet(tweet: TweetData): void {
+async function handleNewTweet(tweet: TweetData): Promise<void> {
   logger.debug('Received new tweet:', tweet.id);
   tweetQueue.add(tweet);
+
+  // 通知 Side Panel 信号可能已更新
+  // 延迟通知以确保队列已处理
+  setTimeout(async () => {
+    try {
+      // 尝试向 Side Panel 发送更新通知
+      await chrome.runtime.sendMessage({
+        type: 'SIGNALS_UPDATED',
+      });
+      logger.debug('Sent SIGNALS_UPDATED notification');
+    } catch (error) {
+      // Side Panel 可能未打开，忽略错误
+      logger.debug('Could not notify Side Panel (might be closed)');
+    }
+  }, 2000);
 }
 
 /**
@@ -78,15 +111,72 @@ async function handleGetSignals(data?: { userId?: string }): Promise<Signal[]> {
 /**
  * 处理发送反馈
  */
-async function handleSendFeedback(feedback?: UserFeedback & { userId?: string }): Promise<void> {
+async function handleSendFeedback(feedback?: UserFeedback & { userId?: string }): Promise<boolean> {
   try {
     if (!feedback || !feedback.signalId) {
       throw new Error('Invalid feedback data');
     }
+    // 发送反馈
     await backendAPI.sendFeedback(feedback);
-    logger.info('Feedback sent:', feedback.action);
+
+    // 只有非保存操作才删除信号
+    const shouldDelete = feedback.action !== 'saved';
+    if (shouldDelete) {
+      await backendAPI.deleteSignal(feedback.signalId);
+      logger.info('Feedback sent and signal deleted:', feedback.action);
+    } else {
+      logger.info('Signal saved:', feedback.signalId);
+    }
+
+    return shouldDelete;
   } catch (error) {
     logger.error('Failed to send feedback:', error);
+    throw error;
+  }
+}
+
+/**
+ * 处理获取已保存信号列表
+ */
+async function handleGetSavedSignals(): Promise<string[]> {
+  try {
+    const savedIds = await backendAPI.getSavedSignalIds();
+    logger.info(`Retrieved ${savedIds.length} saved signals`);
+    return savedIds;
+  } catch (error) {
+    logger.error('Failed to get saved signals:', error);
+    throw error;
+  }
+}
+
+/**
+ * 处理取消保存信号
+ */
+async function handleUnsaveSignal(data?: { signalId: string }): Promise<void> {
+  try {
+    if (!data || !data.signalId) {
+      throw new Error('Invalid signal data');
+    }
+    await backendAPI.unsaveSignal(data.signalId);
+    logger.info('Signal unsaved:', data.signalId);
+  } catch (error) {
+    logger.error('Failed to unsave signal:', error);
+    throw error;
+  }
+}
+
+/**
+ * 处理删除信号
+ */
+async function handleDeleteSignal(data?: { signalId: string }): Promise<void> {
+  try {
+    if (!data || !data.signalId) {
+      throw new Error('Invalid signal data');
+    }
+    await backendAPI.deleteSignal(data.signalId);
+    logger.info('Signal deleted:', data.signalId);
+  } catch (error) {
+    logger.error('Failed to delete signal:', error);
     throw error;
   }
 }

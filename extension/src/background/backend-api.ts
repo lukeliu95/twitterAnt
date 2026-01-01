@@ -113,6 +113,75 @@ export class BackendAPI {
   }
 
   /**
+   * 删除信号（用户反馈后移除）
+   */
+  async deleteSignal(signalId: string): Promise<void> {
+    const url = `${CONFIG.API_BASE_URL}/api/v1/signals/${signalId}`;
+    const token = await this.getAuthToken();
+
+    logger.info(`Deleting signal ${signalId}`);
+
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error('Delete signal error:', response.status, errorText);
+      throw new Error(`API error: ${response.status} - ${errorText}`);
+    }
+
+    logger.info(`Signal ${signalId} deleted successfully`);
+  }
+
+  /**
+   * 获取已保存的信号 ID 列表
+   */
+  async getSavedSignalIds(): Promise<string[]> {
+    const url = `${CONFIG.API_BASE_URL}/api/v1/feedback/saved`;
+    const token = await this.getAuthToken();
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data?.savedIds || [];
+  }
+
+  /**
+   * 取消保存信号
+   */
+  async unsaveSignal(signalId: string): Promise<void> {
+    const url = `${CONFIG.API_BASE_URL}/api/v1/feedback/saved/${signalId}`;
+    const token = await this.getAuthToken();
+
+    logger.info(`Unsaving signal ${signalId}`);
+
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    logger.info(`Signal ${signalId} unsaved successfully`);
+  }
+
+  /**
    * 获取认证 token
    */
   private async getAuthToken(): Promise<string> {
@@ -152,6 +221,7 @@ export class BackendAPI {
    * 生成匿名 token
    */
   private generateAnonymousToken(): string {
-    return `anon_${crypto.randomUUID()}`;
+    // 使用更兼容的 UUID 生成方式
+    return `anon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 }

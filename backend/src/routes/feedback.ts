@@ -22,6 +22,7 @@ const batchFeedbackSchema = z.object({
 
 // 内存存储（开发阶段）
 const feedbackStorage = new Map<string, any>();
+const savedSignalsStorage = new Set<string>(); // 存储已保存的信号 ID
 
 /**
  * POST /api/v1/feedback
@@ -39,6 +40,12 @@ feedbackRouter.post('/', zValidator('json', feedbackSchema), async (c) => {
   });
 
   console.log(`[API] Received feedback: ${feedback.action} for signal ${feedback.signalId}`);
+
+  // 如果是保存操作，添加到保存列表
+  if (feedback.action === 'saved') {
+    savedSignalsStorage.add(feedback.signalId);
+    console.log(`[API] Signal ${feedback.signalId} saved`);
+  }
 
   return c.json<APIResponse>({
     success: true,
@@ -88,6 +95,53 @@ feedbackRouter.get('/', (c) => {
     data: {
       feedbacks,
       total: feedbacks.length,
+    },
+  });
+});
+
+/**
+ * GET /api/v1/feedback/saved
+ * 获取已保存的信号 ID 列表
+ */
+feedbackRouter.get('/saved', (c) => {
+  const savedIds = Array.from(savedSignalsStorage);
+
+  return c.json<APIResponse>({
+    success: true,
+    data: {
+      savedIds,
+      total: savedIds.length,
+    },
+  });
+});
+
+/**
+ * DELETE /api/v1/feedback/saved/:signalId
+ * 取消保存信号
+ */
+feedbackRouter.delete('/saved/:signalId', (c) => {
+  const signalId = c.req.param('signalId');
+
+  if (!signalId) {
+    return c.json<APIResponse>({
+      success: false,
+      error: {
+        code: 'INVALID_SIGNAL_ID',
+        message: 'Signal ID is required',
+      },
+    }, 400);
+  }
+
+  const wasSaved = savedSignalsStorage.has(signalId);
+  savedSignalsStorage.delete(signalId);
+
+  console.log(`[API] Signal ${signalId} unsaved (was ${wasSaved ? 'saved' : 'not saved'})`);
+
+  return c.json<APIResponse>({
+    success: true,
+    data: {
+      signalId,
+      unsaved: wasSaved,
     },
   });
 });
