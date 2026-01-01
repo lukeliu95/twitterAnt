@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { ConfigPage } from './config/ConfigPage';
 import './App.css';
 
 // Types
@@ -79,6 +80,7 @@ function App() {
   const [view, setView] = useState<'all' | 'saved'>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchMode, setBatchMode] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
 
   const loadSignals = useCallback(async () => {
     setLoading(true);
@@ -218,16 +220,30 @@ function App() {
   const displayedSignals = signals;
 
   return (
-    <div className="app-container">
-      <header className="header">
-        <div className="header-title">
-          <span>🔥 趋势信号 (TSF)</span>
-        </div>
-        <div className="status-indicator">
-          <span>{isLive ? '在线' : '离线'}</span>
-          <div className={`status-dot ${isLive ? 'active' : ''}`} />
-        </div>
-      </header>
+    <>
+      {showConfig ? (
+        <ConfigPage onClose={() => setShowConfig(false)} />
+      ) : (
+        <div className="app-container">
+          <header className="header">
+            <div className="header-title">
+              <span>🔥 趋势信号 (TSF)</span>
+              <span className="version">v0.2.0 免费版</span>
+            </div>
+            <div className="header-actions">
+              <button
+                className="settings-btn"
+                onClick={() => setShowConfig(true)}
+                title="设置"
+              >
+                ⚙️
+              </button>
+              <div className="status-indicator">
+                <span>{isLive ? '在线' : '离线'}</span>
+                <div className={`status-dot ${isLive ? 'active' : ''}`} />
+              </div>
+            </div>
+          </header>
 
       <div className="filter-bar">
         <button
@@ -298,6 +314,8 @@ function App() {
         )}
       </main>
     </div>
+      )}
+    </>
   );
 }
 
@@ -318,7 +336,6 @@ function SignalCard({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const isHighScore = signal.score >= 4;
   const [expanded, setExpanded] = useState(false);
   const [editingNotes, setEditingNotes] = useState(false);
   const [notes, setNotes] = useState(signal.userNotes || '');
@@ -329,7 +346,7 @@ function SignalCard({
   };
 
   return (
-    <div className={`signal-card ${isHighScore ? 'high-score' : ''} ${selected ? 'selected' : ''}`}>
+    <div className={`signal-card ${selected ? 'selected' : ''}`}>
       <div className="card-header">
         <div className="card-header-left">
           {batchMode && (

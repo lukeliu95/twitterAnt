@@ -10,6 +10,7 @@
 
 import { BackendAPI } from './backend-api';
 import { TweetQueueManager } from './tweet-queue';
+import { configManager } from './config-manager';
 import { logger } from '../shared/utils/logger';
 import type { TweetData, Signal, UserFeedback } from '../shared/types/tweet';
 
@@ -19,6 +20,11 @@ const tweetQueue = new TweetQueueManager(backendAPI);
 
 // 设置默认配置
 setupDefaultConfig();
+
+// 初始化议题配置
+configManager.getConfig().then(config => {
+  logger.info('Topic config initialized:', config.enabledTopics);
+});
 
 /**
  * 消息路由
@@ -59,6 +65,30 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     case 'BATCH_DELETE_SIGNALS':
       handleBatchDeleteSignals(message.data)
         .then((result) => sendResponse({ success: true, data: result }))
+        .catch((error) => sendResponse({ error: error.message }));
+      return true; // 异步响应
+
+    case 'GET_TOPIC_CONFIG':
+      handleGetTopicConfig()
+        .then((config) => sendResponse({ success: true, config }))
+        .catch((error) => sendResponse({ error: error.message }));
+      return true; // 异步响应
+
+    case 'UPDATE_TOPIC_CONFIG':
+      handleUpdateTopicConfig(message.data)
+        .then((result) => sendResponse(result))
+        .catch((error) => sendResponse({ error: error.message }));
+      return true; // 异步响应
+
+    case 'RESET_TOPIC_CONFIG':
+      handleResetTopicConfig()
+        .then((config) => sendResponse({ success: true, config }))
+        .catch((error) => sendResponse({ error: error.message }));
+      return true; // 异步响应
+
+    case 'GET_KEYWORDS_FOR_TOPICS':
+      handleGetKeywordsForTopics(message.data)
+        .then((keywords) => sendResponse({ success: true, keywords }))
         .catch((error) => sendResponse({ error: error.message }));
       return true; // 异步响应
 
@@ -169,6 +199,79 @@ async function handleBatchDeleteSignals(data?: { ids: string[] }): Promise<{ del
     return result;
   } catch (error) {
     logger.error('Failed to batch delete signals:', error);
+    throw error;
+  }
+}
+
+/**
+ * 处理获取议题配置请求
+ */
+async function handleGetTopicConfig() {
+  try {
+    const config = await configManager.getConfig();
+    return config;
+  } catch (error) {
+    logger.error('Failed to get topic config:', error);
+    throw error;
+  }
+}
+
+/**
+ * 处理更新议题配置请求
+ */
+async function handleUpdateTopicConfig(data?: { topicIds: string[] }) {
+  try {
+    if (!data || !Array.isArray(data.topicIds)) {
+      return { success: false, error: 'Invalid topic data' };
+    }
+    const result = await configManager.updateTopics(data.topicIds);
+    return result;
+  } catch (error) {
+    logger.error('Failed to update topic config:', error);
+    throw error;
+  }
+}
+
+/**
+ * 处理重置议题配置请求
+ */
+async function handleResetTopicConfig() {
+  try {
+    await configManager.resetToDefault();
+    const config = await configManager.getConfig();
+    return config;
+  } catch (error) {
+    logger.error('Failed to reset topic config:', error);
+    throw error;
+  }
+}
+
+/**
+ * 处理获取议题关键词请求
+ */
+async function handleGetKeywordsForTopics(data?: { topicIds: string[] }) {
+  try {
+    if (!data || !Array.isArray(data.topicIds)) {
+      throw new Error('Invalid topic IDs');
+    }
+
+    // 导入议题配置
+    const { TOPIC_CATEGORIES } = await import('../shared/types/topics');
+    const keywords: string[] = [];
+
+    for (const categoryId in TOPIC_CATEGORIES) {
+      const category = TOPIC_CATEGORIES[categoryId];
+      for (const topic of category.topics) {
+        if (data.topicIds.includes(topic.id)) {
+          keywords.push(...topic.keywords);
+        }
+      }
+    }
+
+    // 去重
+    return [...new Set(keywords)];
+  } catch (error) {
+    logger.error('Failed to get keywords for topics:', error);
     throw error;
   }
 }
