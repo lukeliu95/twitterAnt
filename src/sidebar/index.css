@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* 宁静模式 (Serene) - 默认 */
+  --bg-primary: #faf8f5;
+  --bg-secondary: #f5f1ed;
+  --card-bg: #ffffff;
+  --hover-bg: #f0ebe6;
+  
+  --text-primary: #2d2d2d;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  
+  --border-color: #e5e1dc;
+  --border-hover: #d1ccc6;
+  
+  --accent-color: #d97706;
+  --accent-hover: #b45309;
+  --accent-light: #fef3c7;
+  
+  --tag-bg: #f3f4f6;
+}

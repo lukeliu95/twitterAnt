@@ -1,35 +1,33 @@
-# Dependencies
+# Node modules
 node_modules/
-.pnpm-store/
+.npm/
+
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
 
 # Environment variables
 .env
-.env.*
-!.env.example
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+.env.local
+.env.*.local
 
 # Build outputs
 dist/
 build/
-out/
 
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
-
-# IDEs
+# IDE files
 .vscode/
 .idea/
+.DS_Store
 *.swp
 *.swo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Trae/AI specific
+.trae/
