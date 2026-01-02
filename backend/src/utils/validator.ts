@@ -9,7 +9,26 @@ import { logger } from './logger.js';
 /**
  * Signal 类型守卫
  */
-export const SIGNAL_TYPES = ['demand', 'revenue', 'skill', 'trend'] as const;
+export const SIGNAL_TYPES = [
+  // 新版 - 7大热门议题
+  'tech_product',
+  'business_startup',
+  'income_monetization',
+  'data_insights',
+  'skills_learning',
+  'opinion_discussion',
+  'social_viral',
+  // 旧版 - 向后兼容
+  'viral',
+  'insightful',
+  'data_driven',
+  'industry_news',
+  'controversial',
+  'demand',
+  'revenue',
+  'skill',
+  'trend'
+] as const;
 export type SignalType = typeof SIGNAL_TYPES[number];
 
 /**

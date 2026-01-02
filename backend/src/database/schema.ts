@@ -50,12 +50,20 @@ export async function initDatabase(): Promise<Database> {
     console.log('[Database] Created new database');
   }
 
-  // 创建信号表
+  // 迁移：更新 signals 表以支持新版信号类型（v0.3）
+  migrateSignalTypes(db);
+
+  // 创建信号表（v0.3 - 支持新版信号类型）
   db.run(`
     CREATE TABLE IF NOT EXISTS signals (
       id TEXT PRIMARY KEY,
       tweet_id TEXT NOT NULL,
-      type TEXT NOT NULL CHECK(type IN ('demand', 'revenue', 'skill', 'trend')),
+      type TEXT NOT NULL CHECK(type IN (
+        'tech_product', 'business_startup', 'income_monetization', 'data_insights',
+        'skills_learning', 'opinion_discussion', 'social_viral',
+        'viral', 'insightful', 'data_driven', 'industry_news', 'controversial',
+        'demand', 'revenue', 'skill', 'trend'
+      )),
       score INTEGER NOT NULL CHECK(score BETWEEN 1 AND 5),
       summary TEXT NOT NULL,
       description TEXT,
@@ -90,6 +98,78 @@ export async function initDatabase(): Promise<Database> {
   saveDatabase(db);
 
   return db;
+}
+
+/**
+ * 迁移：更新 signals 表以支持新版信号类型
+ * SQLite 不支持直接修改 CHECK 约束，需要重建表
+ */
+function migrateSignalTypes(db: Database): void {
+  try {
+    // 检查表是否存在
+    const checkResult = db.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name='signals'`);
+    if (!checkResult || checkResult.length === 0) {
+      return; // 表不存在，无需迁移
+    }
+
+    // 检查是否需要迁移（查看旧约束）
+    const schemaResult = db.exec(`SELECT sql FROM sqlite_master WHERE type='table' AND name='signals'`);
+    if (schemaResult && schemaResult.length > 0) {
+      const currentSchema = schemaResult[0].values[0][0] as string;
+      // 如果已经包含新版类型，无需迁移
+      if (currentSchema.includes("'tech_product'") || currentSchema.includes("'social_viral'")) {
+        console.log('[Database] Signal types already migrated, skipping');
+        return;
+      }
+    }
+
+    console.log('[Database] Migrating signals table for v0.3...');
+
+    // 1. 创建新表
+    db.run(`
+      CREATE TABLE signals_new (
+        id TEXT PRIMARY KEY,
+        tweet_id TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN (
+          'tech_product', 'business_startup', 'income_monetization', 'data_insights',
+          'skills_learning', 'opinion_discussion', 'social_viral',
+          'viral', 'insightful', 'data_driven', 'industry_news', 'controversial',
+          'demand', 'revenue', 'skill', 'trend'
+        )),
+        score INTEGER NOT NULL CHECK(score BETWEEN 1 AND 5),
+        summary TEXT NOT NULL,
+        description TEXT,
+        reason TEXT,
+        action_plan TEXT,
+        matched_skills TEXT,
+        competition TEXT,
+        original_tweet TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        is_saved INTEGER DEFAULT 0 CHECK(is_saved IN (0, 1)),
+        saved_at TEXT,
+        user_notes TEXT DEFAULT '',
+        UNIQUE(tweet_id)
+      );
+    `);
+
+    // 2. 复制数据
+    db.run(`
+      INSERT INTO signals_new
+      SELECT * FROM signals
+    `);
+
+    // 3. 删除旧表
+    db.run(`DROP TABLE signals;`);
+
+    // 4. 重命名新表
+    db.run(`ALTER TABLE signals_new RENAME TO signals;`);
+
+    console.log('[Database] Signals table migrated successfully');
+  } catch (e) {
+    // 可能表已经是新版或迁移失败，忽略错误
+    console.log('[Database] Migration skipped or failed:', e);
+  }
 }
 
 /**

@@ -8,24 +8,30 @@
  */
 
 // ============================================================================
-// 信号类型定义 - 热门议题"
+// 信号类型定义 - 7大热门议题
 // ============================================================================
 
 export const SIGNAL_TYPES = {
-  /** 🔥 爆发话题 - 短时间内大量互动的内容 */
-  VIRAL: 'viral',
+  /** 📱 技术与产品 - AI, Web3, 开发工具等 */
+  TECH_PRODUCT: 'tech_product',
 
-  /** 💡 深度讨论 - 高质量、有洞察的长文讨论 */
-  INSIGHTFUL: 'insightful',
+  /** 💼 商业与创业 - 融资, 独立开发, 营销等 */
+  BUSINESS_STARTUP: 'business_startup',
 
-  /** 📊 数据观点 - 带数据和证据的观点分享 */
-  DATA_DRIVEN: 'data_driven',
+  /** 💰 收入与变现 - 被动收入, 自由职业, 电商等 */
+  INCOME_MONETIZATION: 'income_monetization',
 
-  /** 🎯 行业动态 - 特定行业的重要更新和趋势 */
-  INDUSTRY_NEWS: 'industry_news',
+  /** 📊 数据与洞察 - 行业报告, 增长指标, 市场趋势 */
+  DATA_INSIGHTS: 'data_insights',
 
-  /** ⚡ 争议议题 - 引发激烈讨论的话题 */
-  CONTROVERSIAL: 'controversial',
+  /** 🎯 技能与学习 - 编程, 设计, 效率工具 */
+  SKILLS_LEARNING: 'skills_learning',
+
+  /** 💡 观点与讨论 - 热门观点, 深度思考, 争议 */
+  OPINION_DISCUSSION: 'opinion_discussion',
+
+  /** 🌍 社会热点 - 突发新闻, 行业大事 */
+  SOCIAL_VIRAL: 'social_viral',
 } as const;
 
 export type SignalType = typeof SIGNAL_TYPES[keyof typeof SIGNAL_TYPES];
@@ -35,30 +41,40 @@ export type SignalType = typeof SIGNAL_TYPES[keyof typeof SIGNAL_TYPES];
 // ============================================================================
 
 export const SIGNAL_TYPE_LABELS: Record<SignalType, { icon: string; label: string; description: string }> = {
-  [SIGNAL_TYPES.VIRAL]: {
-    icon: '🔥',
-    label: '爆发话题',
-    description: '短时间内引发大量讨论的热门内容',
+  [SIGNAL_TYPES.TECH_PRODUCT]: {
+    icon: '📱',
+    label: '技术与产品',
+    description: 'AI、Web3、SaaS及开发工具相关的新动态',
   },
-  [SIGNAL_TYPES.INSIGHTFUL]: {
-    icon: '💡',
-    label: '深度讨论',
-    description: '有独特洞察和思考的高质量内容',
+  [SIGNAL_TYPES.BUSINESS_STARTUP]: {
+    icon: '💼',
+    label: '商业与创业',
+    description: '创业融资、独立开发与商业增长策略',
   },
-  [SIGNAL_TYPES.DATA_DRIVEN]: {
+  [SIGNAL_TYPES.INCOME_MONETIZATION]: {
+    icon: '💰',
+    label: '收入与变现',
+    description: '探索副业、自由职业及多元化收入渠道',
+  },
+  [SIGNAL_TYPES.DATA_INSIGHTS]: {
     icon: '📊',
-    label: '数据观点',
-    description: '基于数据和证据的观点分享',
+    label: '数据与洞察',
+    description: '基于数据分析的行业趋势与市场洞察',
   },
-  [SIGNAL_TYPES.INDUSTRY_NEWS]: {
+  [SIGNAL_TYPES.SKILLS_LEARNING]: {
     icon: '🎯',
-    label: '行业动态',
-    description: '特定行业的重要更新和趋势',
+    label: '技能与学习',
+    description: '提升编程、设计及工作效率的实用技能',
   },
-  [SIGNAL_TYPES.CONTROVERSIAL]: {
-    icon: '⚡',
-    label: '争议议题',
-    description: '引发不同观点激烈讨论的话题',
+  [SIGNAL_TYPES.OPINION_DISCUSSION]: {
+    icon: '💡',
+    label: '观点与讨论',
+    description: '引发思考的深度观点与行业争议',
+  },
+  [SIGNAL_TYPES.SOCIAL_VIRAL]: {
+    icon: '🌍',
+    label: '社会热点',
+    description: '全网关注的突发新闻与行业大事件',
   },
 };
 
@@ -143,627 +159,229 @@ export const PREFILTER_RULES = {
 } as const;
 
 // ============================================================================
-// 热门议题关键词库（旧版，向后兼容）
+// 热门议题关键词库（用于规则回退）
 // ============================================================================
 
 export const HOT_TOPIC_KEYWORDS = {
-  // 技术趋势
-  tech: [
-    'ai', 'gpt', 'llm', 'machine learning', '人工智能',
-    'web3', 'blockchain', 'crypto', '区块链',
-    'react', 'vue', 'frontend', 'backend',
-    'launch', 'released', 'beta', 'announcement',
-  ],
-
-  // 行业动态
-  industry: [
-    'startup', 'funding', 'ipo', 'acquisition',
-    'layoff', 'hiring', 'remote work',
-    'product hunt', 'launch',
-  ],
-
-  // 观点分享
-  opinion: [
-    'my take', 'i think', 'in my opinion',
-    'hot take', 'unpopular opinion',
-    'thesis', 'framework', 'mental model',
-  ],
-
-  // 数据分享
-  data: [
-    'data shows', 'according to', 'statistics',
-    'research', 'study', 'analysis',
-    '%', 'growth', 'revenue', 'metrics',
-  ],
-
-  // 讨论引发
-  discussion: [
-    'question', 'thoughts', 'what do you think',
-    'serious question', 'honest question',
-    'am i the only one', 'unpopular opinion',
-  ],
-
-  // 教程分享
-  tutorial: [
-    'how to', 'guide', 'tutorial', 'tips',
-    'learn', 'explained', 'breakdown', 'deep dive',
-  ],
+  tech_product: ['ai', 'gpt', 'llm', 'web3', 'crypto', 'saas', 'product hunt', 'launch', 'react', 'vue', 'developer'],
+  business_startup: ['funding', 'ipo', 'startup', 'indie hacker', 'marketing', 'growth', 'remote work', 'hiring'],
+  income_monetization: ['revenue', 'income', 'mrr', 'arr', 'passive income', 'freelance', 'dropshipping', 'affiliate'],
+  data_insights: ['data', 'report', 'analysis', 'study', 'research', 'metrics', 'trend', 'forecast'],
+  skills_learning: ['learn', 'tutorial', 'guide', 'how to', 'tips', 'programming', 'design', 'productivity'],
+  opinion_discussion: ['my take', 'opinion', 'thoughts', 'hot take', 'debate', 'advice', 'lesson'],
+  social_viral: ['news', 'breaking', 'update', 'announced', 'official', 'scandal', 'crisis'],
 } as const;
 
-// ============================================================================
-// 用户可配置议题分类（新版）
-// ============================================================================
-
-/**
- * 议题定义
- */
-export interface Topic {
-  id: string;
-  label: string;
-  icon: string;
-  keywords: string[];
-  estimatedSignals: number; // 预估日均信号数
-  isRecommended: boolean; // 是否推荐
-}
-
-/**
- * 议题分类
- */
-export interface TopicCategory {
-  id: string;
-  label: string;
-  icon: string;
-  topics: Topic[];
-}
-
-/**
- * 完整的议题分类配置
- */
-export const TOPIC_CATEGORIES: Record<string, TopicCategory> = {
-  // 📱 技术与产品
-  tech_product: {
-    id: 'tech_product',
-    label: '技术与产品',
-    icon: '📱',
-    topics: [
-      {
-        id: 'ai_llm',
-        label: 'AI/LLM',
-        icon: '🤖',
-        keywords: ['ai', 'gpt', 'chatgpt', 'claude', 'llm', 'openai', 'anthropic', '人工智能', 'machine learning', 'deep learning'],
-        estimatedSignals: 50,
-        isRecommended: true,
-      },
-      {
-        id: 'web3_crypto',
-        label: 'Web3/Crypto',
-        icon: '💰',
-        keywords: ['web3', 'crypto', 'blockchain', 'bitcoin', 'btc', 'eth', 'ethereum', 'defi', 'nft', '区块链', '加密货币'],
-        estimatedSignals: 30,
-        isRecommended: false,
-      },
-      {
-        id: 'dev_tools',
-        label: '开发工具',
-        icon: '💻',
-        keywords: ['react', 'vue', 'angular', 'typescript', 'javascript', 'python', 'rust', 'go', 'frontend', 'backend', 'fullstack'],
-        estimatedSignals: 20,
-        isRecommended: false,
-      },
-      {
-        id: 'saas_product',
-        label: 'SaaS/产品',
-        icon: '🚀',
-        keywords: ['saas', 'product hunt', 'startup', 'launch', 'product', 'mvp', 'pmf', 'iteration'],
-        estimatedSignals: 15,
-        isRecommended: false,
-      },
-      {
-        id: 'mobile_dev',
-        label: '移动开发',
-        icon: '📲',
-        keywords: ['ios', 'android', 'flutter', 'react native', 'swift', 'kotlin', 'app store', 'play store'],
-        estimatedSignals: 12,
-        isRecommended: false,
-      },
-    ],
-  },
-
-  // 💼 商业与创业
-  business_startup: {
-    id: 'business_startup',
-    label: '商业与创业',
-    icon: '💼',
-    topics: [
-      {
-        id: 'funding',
-        label: '创业融资',
-        icon: '💵',
-        keywords: ['funding', 'ipo', 'acquisition', 'vc', 'venture capital', 'angel investor', 'series a', 'seed round', 'valuation'],
-        estimatedSignals: 25,
-        isRecommended: true,
-      },
-      {
-        id: 'indie_hacker',
-        label: '独立开发',
-        icon: '👤',
-        keywords: ['indie hacker', 'solopreneur', 'side project', 'bootstrapped', 'ramen profitable', 'micro saas'],
-        estimatedSignals: 18,
-        isRecommended: true,
-      },
-      {
-        id: 'marketing',
-        label: '营销增长',
-        icon: '📈',
-        keywords: ['marketing', 'growth', 'seo', 'ads', 'funnel', 'conversion', 'cac', 'ltv', 'churn'],
-        estimatedSignals: 12,
-        isRecommended: false,
-      },
-      {
-        id: 'remote_work',
-        label: '远程工作',
-        icon: '🏠',
-        keywords: ['remote work', 'digital nomad', 'distributed team', 'hybrid', 'async', 'location independent'],
-        estimatedSignals: 15,
-        isRecommended: false,
-      },
-      {
-        id: 'hiring',
-        label: '招聘求职',
-        icon: '💼',
-        keywords: ['hiring', 'job', 'career', 'resume', 'interview', 'recruiting', 'we are hiring'],
-        estimatedSignals: 20,
-        isRecommended: false,
-      },
-    ],
-  },
-
-  // 💰 收入与变现
-  income_monetization: {
-    id: 'income_monetization',
-    label: '收入与变现',
-    icon: '💰',
-    topics: [
-      {
-        id: 'passive_income',
-        label: '被动收入',
-        icon: '💎',
-        keywords: ['passive income', 'side hustle', 'dividend', 'rental income', 'automated income'],
-        estimatedSignals: 35,
-        isRecommended: false,
-      },
-      {
-        id: 'freelance',
-        label: '自由职业',
-        icon: '🔧',
-        keywords: ['freelance', 'consulting', 'contractor', 'upwork', 'fiverr', 'remote freelancer'],
-        estimatedSignals: 22,
-        isRecommended: false,
-      },
-      {
-        id: 'content_creator',
-        label: '内容创作',
-        icon: '📹',
-        keywords: ['content creator', 'youtuber', 'newsletter', 'podcast', 'substack', 'patreon', 'sponsorship'],
-        estimatedSignals: 22,
-        isRecommended: false,
-      },
-      {
-        id: 'ecommerce',
-        label: '电商模式',
-        icon: '🛒',
-        keywords: ['ecommerce', 'dropshipping', 'shopify', 'amazon fba', 'print on demand', 'd2c'],
-        estimatedSignals: 18,
-        isRecommended: false,
-      },
-      {
-        id: 'subscription',
-        label: '订阅经济',
-        icon: '🔄',
-        keywords: ['subscription', 'recurring revenue', 'mrr', 'arr', 'churn', 'retention', 'lifecycle'],
-        estimatedSignals: 15,
-        isRecommended: false,
-      },
-    ],
-  },
-
-  // 📊 数据与洞察
-  data_insights: {
-    id: 'data_insights',
-    label: '数据与洞察',
-    icon: '📊',
-    topics: [
-      {
-        id: 'research',
-        label: '行业报告',
-        icon: '📋',
-        keywords: ['research', 'report', 'survey', 'study', 'analysis', 'whitepaper', 'case study'],
-        estimatedSignals: 20,
-        isRecommended: false,
-      },
-      {
-        id: 'metrics',
-        label: '增长指标',
-        icon: '📊',
-        keywords: ['metrics', 'analytics', 'kpi', 'dashboard', 'data', 'attribution', 'cohort'],
-        estimatedSignals: 18,
-        isRecommended: false,
-      },
-      {
-        id: 'user_behavior',
-        label: '用户行为',
-        icon: '🧠',
-        keywords: ['user behavior', 'psychology', 'habits', 'ux research', 'user interview', 'persona'],
-        estimatedSignals: 15,
-        isRecommended: false,
-      },
-      {
-        id: 'market_trend',
-        label: '市场趋势',
-        icon: '📈',
-        keywords: ['trend', 'forecast', 'prediction', 'outlook', 'market analysis', 'future of'],
-        estimatedSignals: 12,
-        isRecommended: false,
-      },
-    ],
-  },
-
-  // 🎯 技能与学习
-  skills_learning: {
-    id: 'skills_learning',
-    label: '技能与学习',
-    icon: '🎯',
-    topics: [
-      {
-        id: 'programming',
-        label: '编程技能',
-        icon: '⌨️',
-        keywords: ['programming', 'coding', 'algorithm', 'code', 'debug', 'best practices', 'clean code'],
-        estimatedSignals: 25,
-        isRecommended: false,
-      },
-      {
-        id: 'design',
-        label: '设计能力',
-        icon: '🎨',
-        keywords: ['design', 'ui', 'ux', 'figma', 'sketch', 'prototype', 'user interface', 'user experience'],
-        estimatedSignals: 20,
-        isRecommended: false,
-      },
-      {
-        id: 'productivity',
-        label: '效率工具',
-        icon: '⚡',
-        keywords: ['productivity', 'tools', 'automation', 'workflow', 'notion', 'obsidian', 'roam research'],
-        estimatedSignals: 22,
-        isRecommended: false,
-      },
-      {
-        id: 'learning',
-        label: '学习方法',
-        icon: '📚',
-        keywords: ['learning', 'education', 'course', 'tutorial', 'how to learn', 'study tips', 'resources'],
-        estimatedSignals: 18,
-        isRecommended: false,
-      },
-    ],
-  },
-
-  // 💡 观点与讨论
-  opinion_discussion: {
-    id: 'opinion_discussion',
-    label: '观点与讨论',
-    icon: '💡',
-    topics: [
-      {
-        id: 'hot_take',
-        label: '热门观点',
-        icon: '🔥',
-        keywords: ['hot take', 'unpopular opinion', 'controversial', 'takes', 'thoughts on', 'my take'],
-        estimatedSignals: 30,
-        isRecommended: false,
-      },
-      {
-        id: 'mental_model',
-        label: '深度思考',
-        icon: '🧠',
-        keywords: ['mental model', 'framework', 'thesis', 'principle', 'philosophy', 'first principles'],
-        estimatedSignals: 15,
-        isRecommended: false,
-      },
-      {
-        id: 'debate',
-        label: '行业争议',
-        icon: '⚔️',
-        keywords: ['debate', 'argument', 'discussion', 'thoughts', 'what do you think', 'serious question'],
-        estimatedSignals: 20,
-        isRecommended: false,
-      },
-      {
-        id: 'advice',
-        label: '经验分享',
-        icon: '💬',
-        keywords: ['my take', 'lessons learned', 'advice', 'experience', 'things i learned', 'reflection'],
-        estimatedSignals: 25,
-        isRecommended: false,
-      },
-    ],
-  },
-
-  // 🌍 社会热点
-  social_viral: {
-    id: 'social_viral',
-    label: '社会热点',
-    icon: '🌍',
-    topics: [
-      {
-        id: 'breaking_news',
-        label: '突发新闻',
-        icon: '📰',
-        keywords: ['breaking', 'news', 'announcement', 'just in', 'exclusive', 'official'],
-        estimatedSignals: 40,
-        isRecommended: false,
-      },
-      {
-        id: 'industry_event',
-        label: '行业大事',
-        icon: '⚡',
-        keywords: ['layoff', 'acquisition', 'bankruptcy', 'scandal', 'crisis', 'shutdown', 'reorg'],
-        estimatedSignals: 15,
-        isRecommended: false,
-      },
-      {
-        id: 'trending',
-        label: '议题追踪',
-        icon: '📈',
-        keywords: ['timeline', 'update', 'developing', 'live', 'ongoing', 'situation'],
-        estimatedSignals: 10,
-        isRecommended: false,
-      },
-    ],
-  },
-};
-
-/**
- * 默认配置：新用户默认选择的议题
- */
-export const DEFAULT_TOPICS: string[] = ['ai_llm', 'funding', 'indie_hacker'];
-
-/**
- * 最少选择数量
- */
-export const MIN_TOPICS_REQUIRED = 2;
-
-/**
- * 最多选择数量
- */
-export const MAX_TOPICS_ALLOWED = 10;
-
-/**
- * 获取议题的所有关键词
- */
-export function getKeywordsForTopics(topicIds: string[]): string[] {
-  const keywords: string[] = [];
-
-  for (const categoryId in TOPIC_CATEGORIES) {
-    const category = TOPIC_CATEGORIES[categoryId];
-    for (const topic of category.topics) {
-      if (topicIds.includes(topic.id)) {
-        keywords.push(...topic.keywords);
-      }
-    }
-  }
-
-  return [...new Set(keywords)]; // 去重
-}
-
-/**
- * 估算每日信号数量
- */
-export function estimateSignalCount(topicIds: string[]): number {
-  let total = 0;
-
-  for (const categoryId in TOPIC_CATEGORIES) {
-    const category = TOPIC_CATEGORIES[categoryId];
-    for (const topic of category.topics) {
-      if (topicIds.includes(topic.id)) {
-        total += topic.estimatedSignals;
-      }
-    }
-  }
-
-  return total;
-}
 
 // ============================================================================
-// AI 分析提示词
+// AI 分析提示词 (v0.4 - 适配7大议题)
 // ============================================================================
 
 /**
- * 编排器系统提示 - 判断推文是否值得分析
+ * 编排器系统提示 - 判断推文属于哪个议题
  */
-export const ORCHESTRATOR_SYSTEM_PROMPT = `你是一个内容筛选助手，帮用户发现值得关注的讨论。
+export const ORCHESTRATOR_SYSTEM_PROMPT = `你是一个推文分类助手，负责将推文归类到最合适的议题中。
 
 你的任务：
-1. 快速看看这条推文值不值得看
-2. 如果值得，告诉用户这属于哪类内容
-3. 如果不值得，就返回 null
+1. 判断推文是否属于以下7个议题之一。
+2. 如果属于，返回对应的议题类型。
+3. 如果不属于或价值过低，返回 null。
 
-内容类型：
-- viral: 正在火的话题 - 大家都在讨论，热度很高
-- insightful: 有深度的内容 - 观点好，有启发
-- data_driven: 有数据支撑 - 用数据说话
-- industry_news: 行业新闻 - 某个行业发生的事
-- controversial: 有争议的话题 - 大家意见不一致
+7大议题分类：
+- tech_product: 技术与产品 (AI, Web3, SaaS, 开发工具, 新产品发布)
+- business_startup: 商业与创业 (融资, 独立开发, 营销增长, 招聘)
+- income_monetization: 收入与变现 (副业, 自由职业, 电商, 订阅收入)
+- data_insights: 数据与洞察 (行业报告, 数据分析, 市场趋势)
+- skills_learning: 技能与学习 (编程, 设计, 效率工具, 学习资源)
+- opinion_discussion: 观点与讨论 (深度观点, 行业争议, 经验分享)
+- social_viral: 社会热点 (突发新闻, 行业大事, 广泛传播的事件)
 
 判断标准：
-- 是不是原创内容（不是转发）
-- 有没有提供新信息或新观点
-- 话题是否和当前热点相关
-- 作者是否有影响力或内容是否有互动
+- 内容是否具有公共价值（非纯个人生活碎碎念）
+- 是否包含该议题的核心关键词或概念
+- 作者是否在认真讨论该议题
 
 返回 JSON 格式：
 {
   "shouldAnalyze": true/false,
-  "recommendedType": "viral" | "insightful" | "data_driven" | "industry_news" | "controversial",
-  "reason": "简短说明原因（20字以内）"
+  "recommendedType": "tech_product" | "business_startup" | "income_monetization" | "data_insights" | "skills_learning" | "opinion_discussion" | "social_viral",
+  "reason": "简短说明归类原因（20字以内）"
 }`;
 
 /**
- * 爆发话题分析提示
+ * 通用输出格式说明
  */
-export const VIRAL_AGENT_PROMPT = `你是一个热门话题分析助手，帮用户发现大家都在讨论什么。
-
-请用简单易懂的语言分析推文，告诉用户：
-1. 大家在聊什么（用大白话讲清楚）
-2. 为什么这个话题这么火（简单解释原因）
-3. 值不值得关注（给个建议）
-4. 想参与讨论可以说什么（给1-2个实用的回复建议）
-
-评分标准（1-5 分）：
-- 5 分：超级火，大家都在刷这个话题，一定要知道
-- 4 分：很热门，讨论很多，值得看看
-- 3 分：有一定热度，可以了解一下
-- 2 分：小范围讨论
-- 1 分：没什么特别的
-
-返回 JSON 格式：
+const COMMON_OUTPUT_FORMAT = `
+## 返回 JSON 格式（必须严格遵守）
 {
-  "score": 数字 1-5,
-  "summary": "用大白话说这是啥话题（30字以内）",
-  "description": "详细告诉大家话题内容，别用专业术语",
-  "reason": "用简单的话解释为什么火",
-  "actionPlan": ["想参与可以说这个", "或者这样说"],
-  "relatedTopics": ["相关话题", "相关标签"],
-  "discussionVelocity": "热度还在涨还是已经差不多了"
+  "score": 数字1-5,
+  "summary": "30字以内大白话概括核心内容",
+  "description": "详细解读，说明背景、核心点和价值，100-200字",
+  "reason": "为什么这条推文值得关注",
+  "actionPlan": ["具体的行动建议1", "具体的行动建议2"],
+  "relatedTopics": ["相关标签1", "相关标签2"],
+  "analysis": "简要分析该内容的趋势或价值点"
 }`;
 
 /**
- * 深度讨论分析提示
+ * 1. 技术与产品分析提示
  */
-export const INSIGHTFUL_AGENT_PROMPT = `你是一个有深度的内容分析助手，帮用户发现那些有价值的思考。
+export const TECH_PRODUCT_AGENT_PROMPT = `你是一个技术趋势分析专家。
 
-请用简单易懂的语言分析推文，告诉用户：
-1. 这个观点的核心是什么（用大白话说）
-2. 这个观点好在哪里（简单说明价值）
-3. 用户能得到什么启发（实用的收获）
-4. 适合什么样的人看
+## 任务
+分析推文中的技术或产品动态，判断其创新性和行业影响。
+关注领域：AI/LLM, Web3, SaaS, 开发工具, 新产品发布。
 
-评分标准（1-5 分）：
-- 5 分：非常有见地，能让人豁然开朗，强烈推荐
-- 4 分：有很好的观点，值得学习和思考
-- 3 分：有新想法，可以看看
-- 2 分：一般性观点
-- 1 分：没什么特别的
+## 评分标准 (1-5)
+- 5分：颠覆性技术突破或重磅产品发布
+- 4分：重要的技术更新或有潜力的产品
+- 3分：一般的技术讨论或工具推荐
+- 2分：常规更新
+- 1分：无实质内容
 
-返回 JSON 格式：
-{
-  "score": 数字 1-5,
-  "summary": "用大白话说这个观点是啥（30字以内）",
-  "description": "详细解释，用例子说明，别讲大道理",
-  "reason": "简单说明这个观点为什么有用",
-  "actionPlan": ["可以这样应用", "还能这样用"],
-  "relatedTopics": ["相关概念", "相关话题"],
-  "targetAudience": "谁最适合看这个"
-}`;
+## 输出要求
+- 用通俗易懂的中文解释技术概念
+- 重点说明该技术/产品的实际应用场景
+${COMMON_OUTPUT_FORMAT}`;
 
 /**
- * 数据观点分析提示
+ * 2. 商业与创业分析提示
  */
-export const DATA_DRIVEN_AGENT_PROMPT = `你是一个数据内容分析助手，帮用户看懂数据背后的信息。
+export const BUSINESS_STARTUP_AGENT_PROMPT = `你是一个商业创投分析师。
 
-请用简单易懂的语言分析推文，告诉用户：
-1. 这个数据在说什么（用大白话解释数据）
-2. 数据说明了什么问题（简单明了）
-3. 这个数据可信吗（直接告诉用户能不能信）
-4. 数据对用户有什么用（实际价值）
+## 任务
+分析推文中的商业动态、创业经验或市场机会。
+关注领域：融资, 独立开发, 营销增长, 远程工作, 招聘。
 
-评分标准（1-5 分）：
-- 5 分：数据很靠谱，结论很明确，非常值得参考
-- 4 分：数据可信，有参考价值
-- 3 分：有一定数据支撑，可以看看
-- 2 分：数据不太够，仅供参考
-- 1 分：没什么数据支撑
+## 评分标准 (1-5)
+- 5分：重大融资新闻或极具启发的创业复盘
+- 4分：实用的营销策略或增长黑客技巧
+- 3分：常规的商业资讯
+- 2分：一般性讨论
+- 1分：无价值信息
 
-返回 JSON 格式：
-{
-  "score": 数字 1-5,
-  "summary": "用大白话说这个数据是啥意思（30字以内）",
-  "description": "详细解释，用生活化的比喻或例子",
-  "reason": "简单说明为什么这个数据重要",
-  "actionPlan": ["可以这样用这个数据", "还能这样"],
-  "relatedTopics": ["相关数据", "相关指标"],
-  "dataReliability": "直接说可信度：很可信/一般/需要验证"
-}`;
+## 输出要求
+- 提炼核心商业逻辑或增长策略
+- 对创业者或经营者给出具体建议
+${COMMON_OUTPUT_FORMAT}`;
 
 /**
- * 行业动态分析提示
+ * 3. 收入与变现分析提示
  */
-export const INDUSTRY_NEWS_AGENT_PROMPT = `你是一个行业动态分析助手，帮用户了解行业内发生了什么大事。
+export const INCOME_MONETIZATION_AGENT_PROMPT = `你是一个变现策略顾问。
 
-请用简单易懂的语言分析推文，告诉用户：
-1. 发生了什么事（用大白话讲清楚）
-2. 为什么这个事重要（简单说明影响）
-3. 和用户有什么关系（实际影响）
-4. 需要做什么（给个简单建议）
+## 任务
+分析推文中的收入模式、变现技巧或副业机会。
+关注领域：被动收入, 自由职业, 内容变现, 电商, 订阅经济。
 
-评分标准（1-5 分）：
-- 5 分：行业大事，影响很大，必须知道
-- 4 分：重要动态，值得关注
-- 3 分：一般更新，可以了解
-- 2 分：小事
-- 1 分：不重要
+## 评分标准 (1-5)
+- 5分：验证过的、可复制的高价值变现路径
+- 4分：有具体数据支撑的收入案例
+- 3分：有启发但需验证的思路
+- 2分：笼统的建议
+- 1分：纯粹的炫耀或广告
 
-返回 JSON 格式：
-{
-  "score": 数字 1-5,
-  "summary": "用大白话说发生了啥（30字以内）",
-  "description": "详细说明，解释背景和来龙去脉",
-  "reason": "简单说明为什么重要",
-  "actionPlan": ["可以这样做", "或者这样"],
-  "relatedTopics": ["相关公司", "相关领域"],
-  "impactScope": "影响范围：全行业/局部/小范围"
-}`;
+## 输出要求
+- 拆解变现模式的关键点
+- 评估该模式的可行性和门槛
+${COMMON_OUTPUT_FORMAT}`;
 
 /**
- * 争议议题分析提示
+ * 4. 数据与洞察分析提示
  */
-export const CONTROVERSIAL_AGENT_PROMPT = `你是一个争议话题分析助手，帮用户了解大家在争论什么。
+export const DATA_INSIGHTS_AGENT_PROMPT = `你是一个数据分析师。
 
-请用简单易懂的语言分析推文，告诉用户：
-1. 大家在吵什么（用大白话说清楚争议点）
-2. 各方什么观点（简单列出不同看法）
-3. 为什么值得了解（说明争议的价值）
-4. 怎么理性参与（避免情绪化，给个建议）
+## 任务
+解读推文中的行业数据、研究报告或市场趋势分析。
+关注领域：行业报告, 增长指标, 用户行为, 市场预测。
 
-评分标准（1-5 分）：
-- 5 分：很重要的话题，讨论很有价值，值得深入
-- 4 分：有意义的争议，可以看看不同观点
-- 3 分：一般性讨论，可以了解
-- 2 分：小争议
-- 1 分：没什么价值的争吵
+## 评分标准 (1-5)
+- 5分：权威机构发布的重磅数据或深刻的市场洞察
+- 4分：有详实数据支持的趋势分析
+- 3分：单一维度的数据分享
+- 2分：缺乏上下文的数据
+- 1分：无来源或不可信数据
 
-返回 JSON 格式：
-{
-  "score": 数字 1-5,
-  "summary": "用大白话说大家在吵啥（30字以内）",
-  "description": "说明各方的观点，别偏袒任何一方",
-  "reason": "简单说明为什么这个争议值得了解",
-  "actionPlan": ["想参与可以这样说", "注意保持理性"],
-  "relatedTopics": ["相关议题", "相关话题"],
-  "discussionQuality": "讨论质量：很有价值/一般/就是吵架"
-}`;
+## 输出要求
+- 解释数据背后的含义和趋势
+- 说明这些数据对决策的参考价值
+${COMMON_OUTPUT_FORMAT}`;
+
+/**
+ * 5. 技能与学习分析提示
+ */
+export const SKILLS_LEARNING_AGENT_PROMPT = `你是一个技能成长导师。
+
+## 任务
+提取推文中的实用技能、学习资源或效率提升方法。
+关注领域：编程技巧, 设计规范, 效率工具, 学习方法论。
+
+## 评分标准 (1-5)
+- 5分：系统性的高质量教程或极其实用的技巧
+- 4分：优质的学习资源合集或工具推荐
+- 3分：单一的小技巧
+- 2分：常识性内容
+- 1分：低质量内容
+
+## 输出要求
+- 明确该技能/资源的适用人群
+- 给出具体的学习或使用路径
+${COMMON_OUTPUT_FORMAT}`;
+
+/**
+ * 6. 观点与讨论分析提示
+ */
+export const OPINION_DISCUSSION_AGENT_PROMPT = `你是一个深度观点评论员。
+
+## 任务
+分析推文中的深度观点、行业争议或独特思考。
+关注领域：热门观点, 深度思考, 行业争议, 经验教训。
+
+## 评分标准 (1-5)
+- 5分：极具洞察力、引发深思的独特观点
+- 4分：逻辑严密、视角独特的分析
+- 3分：有一定道理的个人见解
+- 2分：陈词滥调
+- 1分：无意义的争吵
+
+## 输出要求
+- 提炼核心论点
+- 客观呈现不同视角的争议点（如有）
+${COMMON_OUTPUT_FORMAT}`;
+
+/**
+ * 7. 社会热点分析提示
+ */
+export const SOCIAL_VIRAL_AGENT_PROMPT = `你是一个热点事件观察员。
+
+## 任务
+分析推文中的突发新闻、行业大事或广泛传播的社会议题。
+关注领域：突发新闻, 行业震动, 广泛传播的事件。
+
+## 评分标准 (1-5)
+- 5分：全网关注的重大突发事件
+- 4分：行业内的重要新闻
+- 3分：有一定热度的话题
+- 2分：小范围八卦
+- 1分：无聊琐事
+
+## 输出要求
+- 快速概括事件的5W1H（Who, What, When, Where, Why, How）
+- 分析事件的后续影响
+${COMMON_OUTPUT_FORMAT}`;
 
 // ============================================================================
 // 导出所有 AI Agent 提示词映射
 // ============================================================================
 
 export const AGENT_PROMPTS: Record<SignalType, string> = {
-  [SIGNAL_TYPES.VIRAL]: VIRAL_AGENT_PROMPT,
-  [SIGNAL_TYPES.INSIGHTFUL]: INSIGHTFUL_AGENT_PROMPT,
-  [SIGNAL_TYPES.DATA_DRIVEN]: DATA_DRIVEN_AGENT_PROMPT,
-  [SIGNAL_TYPES.INDUSTRY_NEWS]: INDUSTRY_NEWS_AGENT_PROMPT,
-  [SIGNAL_TYPES.CONTROVERSIAL]: CONTROVERSIAL_AGENT_PROMPT,
+  [SIGNAL_TYPES.TECH_PRODUCT]: TECH_PRODUCT_AGENT_PROMPT,
+  [SIGNAL_TYPES.BUSINESS_STARTUP]: BUSINESS_STARTUP_AGENT_PROMPT,
+  [SIGNAL_TYPES.INCOME_MONETIZATION]: INCOME_MONETIZATION_AGENT_PROMPT,
+  [SIGNAL_TYPES.DATA_INSIGHTS]: DATA_INSIGHTS_AGENT_PROMPT,
+  [SIGNAL_TYPES.SKILLS_LEARNING]: SKILLS_LEARNING_AGENT_PROMPT,
+  [SIGNAL_TYPES.OPINION_DISCUSSION]: OPINION_DISCUSSION_AGENT_PROMPT,
+  [SIGNAL_TYPES.SOCIAL_VIRAL]: SOCIAL_VIRAL_AGENT_PROMPT,
 };
 
 // ============================================================================

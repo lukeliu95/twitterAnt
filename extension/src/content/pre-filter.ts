@@ -1,13 +1,10 @@
 /**
  * 本地初筛器 - 过滤掉不太可能包含信号的推文
  *
- * 增强功能：
- * - 根据用户配置的议题进行过滤
- * - 支持动态加载用户配置
+ * 简化版 v0.4 - 使用新的议题配置结构
  */
 
 import type { TweetData } from '../shared/types/tweet';
-import { SIGNAL_KEYWORDS } from '../shared/constants/keywords';
 import { logger } from '../shared/utils/logger';
 
 // 用户配置的关键词缓存
@@ -44,16 +41,16 @@ async function loadUserConfigKeywords(): Promise<string[]> {
     logger.warn('Failed to load user config, using default keywords:', error);
   }
 
-  // 失败时返回默认关键词（所有类别）
-  return Object.values(SIGNAL_KEYWORDS).flat();
+  // 失败时返回默认关键词（所有7大议题）
+  return getDefaultKeywords();
 }
 
 /**
  * 根据议题 ID 获取关键词
  */
 async function getKeywordsForTopics(topicIds: string[]): Promise<string[]> {
-  // 这里需要从 shared/types/topics.ts 导入 TOPIC_CATEGORIES
-  // 由于 content script 的限制，我们通过消息传递获取
+  // 这里需要从 shared/types/topics.ts 导入 TOPICS 和 getKeywordsForTopicIds
+  // 但由于 content script 的限制，我们通过消息传递获取
   try {
     const response = await chrome.runtime.sendMessage({
       type: 'GET_KEYWORDS_FOR_TOPICS',
@@ -68,7 +65,29 @@ async function getKeywordsForTopics(topicIds: string[]): Promise<string[]> {
   }
 
   // 降级：使用默认关键词
-  return Object.values(SIGNAL_KEYWORDS).flat();
+  return getDefaultKeywords();
+}
+
+/**
+ * 获取默认关键词（所有7大议题）
+ */
+function getDefaultKeywords(): string[] {
+  return [
+    // 技术与产品
+    'ai', 'gpt', 'chatgpt', 'claude', 'llm', 'web3', 'crypto', 'blockchain', 'react', 'vue', 'saas', 'product hunt', 'launch',
+    // 商业与创业
+    'funding', 'startup', 'indie hacker', 'marketing', 'growth', 'hiring',
+    // 收入与变现
+    'revenue', 'income', 'passive income', 'freelance', 'monetization',
+    // 数据与洞察
+    'data', 'report', 'analysis', 'research', 'metrics', 'trend',
+    // 技能与学习
+    'learn', 'tutorial', 'guide', 'how to', 'programming', 'design', 'productivity',
+    // 观点与讨论
+    'my take', 'opinion', 'thoughts', 'hot take', 'debate', 'advice',
+    // 社会热点
+    'news', 'breaking', 'announcement', 'viral', 'trending',
+  ];
 }
 
 export class PreFilter {
@@ -90,7 +109,7 @@ export class PreFilter {
     } catch (error) {
       logger.error('Failed to load keywords:', error);
       // 使用默认关键词
-      this.keywords = Object.values(SIGNAL_KEYWORDS).flat();
+      this.keywords = getDefaultKeywords();
       this.keywordsLoaded = true;
     }
   }
@@ -102,6 +121,7 @@ export class PreFilter {
     userConfigKeywords = null; // 清除缓存
     await this.loadKeywords();
   }
+
   /**
    * 检查推文是否可能包含信号
    */
@@ -124,17 +144,11 @@ export class PreFilter {
         logger.info('Tweet matched user config keywords:', tweet.text.slice(0, 50));
         return true;
       }
-    } else {
-      // 降级：使用旧的关键词匹配
-      if (this.matchKeywords(text)) {
-        logger.info('Tweet matched default keywords:', tweet.text.slice(0, 50));
-        return true;
-      }
     }
 
     // 4. 高互动推文（可能是重要信息）
     if (this.isHighEngagement(tweet)) {
-      logger.info('Tweet has engagement:', tweet.engagement.likes, 'likes');
+      logger.info('Tweet has high engagement:', tweet.engagement.likes, 'likes');
       return true;
     }
 
@@ -149,27 +163,14 @@ export class PreFilter {
   }
 
   /**
-   * 检查是否匹配任何关键词（旧版本，向后兼容）
-   */
-  private matchKeywords(text: string): boolean {
-    for (const category in SIGNAL_KEYWORDS) {
-      const keywords = SIGNAL_KEYWORDS[category as keyof typeof SIGNAL_KEYWORDS];
-      if (keywords && this.matchAnyKeyword(text, keywords)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * 检查是否匹配特定类别的关键词
+   * 检查是否匹配任何关键词
    */
   private matchAnyKeyword(text: string, keywords: string[]): boolean {
     return keywords.some((keyword) => text.includes(keyword.toLowerCase()));
   }
 
   /**
-   * 检查是否是高互动推文 - 降低门槛用于测试
+   * 检查是否是高互动推文
    */
   private isHighEngagement(tweet: TweetData): boolean {
     const { likes, retweets } = tweet.engagement;

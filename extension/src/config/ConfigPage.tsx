@@ -1,5 +1,5 @@
 /**
- * 议题配置页面 - ConfigPage.tsx
+ * 议题配置页面 - ConfigPage.tsx - 简化版 v0.4
  *
  * 用户可以选择自己感兴趣的热门议题
  * 设计原则（Alan Cooper）：
@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { TOPIC_CATEGORIES, DEFAULT_TOPICS, MIN_TOPICS_REQUIRED, MAX_TOPICS_ALLOWED, estimateSignalCount, type TopicConfig } from '../shared/types/topics';
+import { TOPICS, DEFAULT_TOPICS, MIN_TOPICS_REQUIRED, MAX_TOPICS_ALLOWED, estimateSignalCount, type TopicConfig } from '../shared/types/topics';
 import './ConfigPage.css';
 
 interface ConfigPageProps {
@@ -23,7 +23,6 @@ export function ConfigPage({ onClose }: ConfigPageProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(Object.keys(TOPIC_CATEGORIES)));
 
   // 加载当前配置
   useEffect(() => {
@@ -68,44 +67,6 @@ export function ConfigPage({ onClose }: ConfigPageProps) {
     }
     setEnabledTopics(newEnabled);
     setError(null);
-  };
-
-  const toggleCategory = (categoryId: string) => {
-    const newExpanded = new Set(expandedCategories);
-    if (newExpanded.has(categoryId)) {
-      newExpanded.delete(categoryId);
-    } else {
-      newExpanded.add(categoryId);
-    }
-    setExpandedCategories(newExpanded);
-  };
-
-  const selectAllInCategory = (categoryId: string) => {
-    const category = TOPIC_CATEGORIES[categoryId];
-    const newEnabled = new Set(enabledTopics);
-
-    category.topics.forEach(topic => {
-      if (newEnabled.size < MAX_TOPICS_ALLOWED) {
-        newEnabled.add(topic.id);
-      }
-    });
-
-    setEnabledTopics(newEnabled);
-  };
-
-  const deselectAllInCategory = (categoryId: string) => {
-    const category = TOPIC_CATEGORIES[categoryId];
-    const newEnabled = new Set(enabledTopics);
-
-    category.topics.forEach(topic => {
-      // 确保不会低于最小值
-      const remainingCount = newEnabled.size - category.topics.filter(t => newEnabled.has(t.id)).length;
-      if (remainingCount >= MIN_TOPICS_REQUIRED) {
-        newEnabled.delete(topic.id);
-      }
-    });
-
-    setEnabledTopics(newEnabled);
   };
 
   const handleSave = async () => {
@@ -205,80 +166,40 @@ export function ConfigPage({ onClose }: ConfigPageProps) {
         </div>
       </div>
 
-      {/* Topic Categories */}
+      {/* Topics List */}
       <div className="topics-container">
-        {Object.values(TOPIC_CATEGORIES).map(category => (
-          <div key={category.id} className="topic-category">
-            {/* Category Header */}
+        {TOPICS.map(topic => {
+          const isEnabled = enabledTopics.has(topic.id);
+          return (
             <div
-              className="category-header"
-              onClick={() => toggleCategory(category.id)}
+              key={topic.id}
+              className={`topic-item ${isEnabled ? 'enabled' : ''} ${topic.isRecommended ? 'recommended' : ''}`}
+              onClick={() => toggleTopic(topic.id)}
             >
-              <div className="category-info">
-                <span className="category-icon">{category.icon}</span>
-                <span className="category-label">{category.label}</span>
+              <div className="topic-info">
+                <input
+                  type="checkbox"
+                  checked={isEnabled}
+                  onChange={() => toggleTopic(topic.id)}
+                  className="topic-checkbox"
+                />
+                <span className="topic-icon">{topic.icon}</span>
+                <div className="topic-content">
+                  <div className="topic-header-row">
+                    <span className="topic-label">{topic.label}</span>
+                    {topic.isRecommended && (
+                      <span className="topic-recommended-badge">推荐</span>
+                    )}
+                  </div>
+                  <span className="topic-description">{topic.description}</span>
+                </div>
               </div>
-              <div className="category-actions">
-                <button
-                  className="category-action-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    selectAllInCategory(category.id);
-                  }}
-                  title="全选"
-                >
-                  全选
-                </button>
-                <button
-                  className="category-action-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deselectAllInCategory(category.id);
-                  }}
-                  title="清空"
-                >
-                  清空
-                </button>
-                <span className={`expand-icon ${expandedCategories.has(category.id) ? 'expanded' : ''}`}>
-                  ▼
-                </span>
+              <div className="topic-meta">
+                <span className="topic-signals">~{topic.estimatedSignals}/日</span>
               </div>
             </div>
-
-            {/* Topics List */}
-            {expandedCategories.has(category.id) && (
-              <div className="topics-list">
-                {category.topics.map(topic => {
-                  const isEnabled = enabledTopics.has(topic.id);
-                  return (
-                    <div
-                      key={topic.id}
-                      className={`topic-item ${isEnabled ? 'enabled' : ''} ${topic.isRecommended ? 'recommended' : ''}`}
-                      onClick={() => toggleTopic(topic.id)}
-                    >
-                      <div className="topic-info">
-                        <input
-                          type="checkbox"
-                          checked={isEnabled}
-                          onChange={() => toggleTopic(topic.id)}
-                          className="topic-checkbox"
-                        />
-                        <span className="topic-icon">{topic.icon}</span>
-                        <span className="topic-label">{topic.label}</span>
-                        {topic.isRecommended && (
-                          <span className="topic-recommended-badge">推荐</span>
-                        )}
-                      </div>
-                      <div className="topic-meta">
-                        <span className="topic-signals">~{topic.estimatedSignals}/日</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Actions */}

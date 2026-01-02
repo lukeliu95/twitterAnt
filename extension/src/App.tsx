@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ConfigPage } from './config/ConfigPage';
+import { RawTweetCard } from './components/RawTweetCard';
+import type { RawTweet } from './shared/types/raw-tweet';
 import './App.css';
 
 // Types
 interface Signal {
   id: string;
-  type: 'viral' | 'insightful' | 'data_driven' | 'industry_news' | 'controversial' | 'demand' | 'revenue' | 'skill' | 'trend';
+  type: string;
   score: number;
   summary: string;
   description: string;
@@ -26,16 +28,23 @@ interface Signal {
   };
 }
 
-// 信号类型中文映射 - 热门议题版
+// 信号类型中文映射 - 7大热门议题
 const SIGNAL_TYPE_LABELS: Record<string, string> = {
-  // 新版 - 热门议题
+  // 新版 - 7大热门议题（匹配后端）
+  tech_product: '📱 技术与产品',
+  business_startup: '💼 商业与创投',
+  income_monetization: '💰 搞钱与副业',
+  data_insights: '📊 数据与洞察',
+  skills_learning: '🎯 技能与成长',
+  opinion_discussion: '💡 观点与讨论',
+  social_viral: '🔥 爆发与热点',
+
+  // 旧版 - 向后兼容
   viral: '🔥 爆发话题',
   insightful: '💡 深度讨论',
   data_driven: '📊 数据观点',
   industry_news: '🎯 行业动态',
   controversial: '⚡ 争议议题',
-
-  // 旧版 - 向后兼容
   demand: '💰 需求',
   revenue: '📈 收入',
   skill: '🎯 技能',
@@ -46,7 +55,7 @@ const SIGNAL_TYPE_LABELS: Record<string, string> = {
 const MOCK_SIGNALS: Signal[] = [
   {
     id: '1',
-    type: 'demand',
+    type: 'tech_product',
     score: 5,
     summary: 'AI 视频编辑工具需求旺盛',
     description: '多位用户询问可与 Premiere Pro 兼容的自动化视频编辑工具。',
@@ -55,7 +64,7 @@ const MOCK_SIGNALS: Signal[] = [
   },
   {
     id: '2',
-    type: 'revenue',
+    type: 'income_monetization',
     score: 4,
     summary: 'SaaS 收入里程碑分享',
     description: '创始人分享了生产力领域微 SaaS 的月收入 5000 美元的指标。',
@@ -64,7 +73,7 @@ const MOCK_SIGNALS: Signal[] = [
   },
   {
     id: '3',
-    type: 'trend',
+    type: 'social_viral',
     score: 3,
     summary: '本地 LLM 兴趣上升',
     description: '你的时间线上关于本地运行 Llama 3 的讨论量增加了 40%。',
@@ -75,12 +84,36 @@ const MOCK_SIGNALS: Signal[] = [
 
 function App() {
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [rawTweets, setRawTweets] = useState<RawTweet[]>([]);
   const [isLive, setIsLive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'all' | 'saved'>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchMode, setBatchMode] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+
+  const API_BASE = 'http://localhost:3001/api/v1';
+
+  const loadRawTweets = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/tweets/raw/recent?limit=20&includeCompleted=false`);
+      const result = await response.json();
+      if (result.success && result.data.rawTweets) {
+        setRawTweets(result.data.rawTweets);
+        // Extract jobId if available
+        const jobIds = result.data.rawTweets
+          .filter((rt: RawTweet) => rt.status === 'pending_analysis' || rt.status === 'analyzing')
+          .map((rt: RawTweet) => rt.id);
+        if (jobIds.length > 0 && !currentJobId) {
+          // Start polling
+          setCurrentJobId('polling');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load raw tweets:', error);
+    }
+  }, [currentJobId]);
 
   const loadSignals = useCallback(async () => {
     setLoading(true);
@@ -113,13 +146,45 @@ function App() {
     }
   }, [view]);
 
+  // Poll for analysis status updates
+  useEffect(() => {
+    if (!currentJobId) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        // Reload raw tweets to get updated status
+        await loadRawTweets();
+
+        // Reload signals in case any completed
+        await loadSignals();
+
+        // Check if all are completed
+        const pendingCount = rawTweets.filter(
+          rt => rt.status === 'pending_analysis' || rt.status === 'analyzing'
+        ).length;
+
+        if (pendingCount === 0) {
+          setCurrentJobId(null);
+        }
+      } catch (error) {
+        console.error('Polling error:', error);
+      }
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [currentJobId, loadRawTweets, loadSignals, rawTweets]);
+
   useEffect(() => {
     loadSignals();
+    loadRawTweets();
 
     // Auto refresh every 30s
-    const interval = setInterval(loadSignals, 30000);
+    const interval = setInterval(() => {
+      loadSignals();
+      loadRawTweets();
+    }, 30000);
     return () => clearInterval(interval);
-  }, [loadSignals]);
+  }, [loadSignals, loadRawTweets]);
 
   const handleToggleSave = async (id: string) => {
     // Optimistic update
@@ -228,7 +293,7 @@ function App() {
           <header className="header">
             <div className="header-title">
               <span>🔥 趋势信号 (TSF)</span>
-              <span className="version">v0.2.0 免费版</span>
+              <span className="version">v0.3.0 免费版</span>
             </div>
             <div className="header-actions">
               <button
@@ -275,9 +340,9 @@ function App() {
       </div>
 
       <main className="content">
-        {loading && signals.length === 0 ? (
+        {loading && signals.length === 0 && rawTweets.length === 0 ? (
           <div className="loading-state">加载信号中...</div>
-        ) : displayedSignals.length === 0 ? (
+        ) : displayedSignals.length === 0 && rawTweets.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">📡</div>
             <p className="empty-text">
@@ -286,6 +351,16 @@ function App() {
           </div>
         ) : (
           <>
+            {/* Raw Tweets (analyzing) */}
+            {rawTweets.length > 0 && (
+              <>
+                {rawTweets.map(rawTweet => (
+                  <RawTweetCard key={rawTweet.id} rawTweet={rawTweet} />
+                ))}
+              </>
+            )}
+
+            {/* Completed Signals */}
             {batchMode && (
               <div className="batch-actions">
                 <label className="select-all">

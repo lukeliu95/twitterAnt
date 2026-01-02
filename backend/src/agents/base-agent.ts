@@ -55,7 +55,8 @@ export abstract class BaseAgent {
     const anthropic = new Anthropic(clientConfig);
 
     try {
-      const response = await anthropic.messages.create({
+      // 使用流式调用以避免超时限制
+      const stream = await anthropic.messages.create({
         model: this.config.model,
         max_tokens: this.config.maxTokens,
         temperature: this.config.temperature,
@@ -66,14 +67,17 @@ export abstract class BaseAgent {
             content: userPrompt,
           },
         ],
+        stream: true,
       });
 
-      const content = response.content[0];
-      if (content.type === 'text') {
-        return content.text;
+      let fullText = '';
+      for await (const chunk of stream) {
+        if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+          fullText += chunk.delta.text;
+        }
       }
 
-      throw new Error('Unexpected response type from Claude');
+      return fullText;
     } catch (error) {
       console.error(`[${this.name}] Claude API error:`, error);
       throw error;

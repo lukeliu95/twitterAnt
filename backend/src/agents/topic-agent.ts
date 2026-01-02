@@ -1,15 +1,18 @@
 /**
- * Data Driven Agent - 数据观点分析专家
- * 专门识别基于数据的可信观点
+ * Topic Agent
+ * 通用议题分析 Agent，用于处理所有 7 大议题
  */
 
 import { BaseAgent, type AnalysisResult } from './base-agent.js';
-import type { TweetData } from '../types/index.js';
-import { DATA_DRIVEN_AGENT_PROMPT, SIGNAL_TYPES } from '../config/signal-rules.js';
+import type { TweetData, SignalType } from '../types/index.js';
 
-export class DataDrivenAgent extends BaseAgent {
-  constructor() {
-    super('DataDriven', DATA_DRIVEN_AGENT_PROMPT);
+export class TopicAgent extends BaseAgent {
+  constructor(
+    name: string,
+    systemPrompt: string,
+    private readonly topicType: SignalType
+  ) {
+    super(name, systemPrompt);
   }
 
   async analyze(tweet: TweetData): Promise<AnalysisResult | null> {
@@ -19,23 +22,23 @@ export class DataDrivenAgent extends BaseAgent {
       const result = this.parseJSONResponse(response);
 
       return {
-        type: SIGNAL_TYPES.DATA_DRIVEN,
+        type: this.topicType,
         score: this.calculateBaseScore(tweet, result.score),
         summary: result.summary,
         description: result.description,
         reason: result.reason,
         actionPlan: result.actionPlan || [],
-        matchedSkills: result.relatedTopics || [],
-        competition: result.dataReliability || '',
+        matchedSkills: result.matchedSkills || [], // 可选字段
+        competition: result.competition || '',     // 可选字段
       };
     } catch (error) {
-      console.error('[DataDrivenAgent] Analysis failed:', error);
+      console.error(`[${this.name}] Analysis failed:`, error);
       return null;
     }
   }
 
   private buildPrompt(tweet: TweetData): string {
-    return `请分析以下推文是否是基于数据的可信观点：
+    return `请分析以下推文：
 
 推文内容：
 ${tweet.text}

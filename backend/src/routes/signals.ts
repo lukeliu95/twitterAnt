@@ -8,6 +8,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import type { Signal, APIResponse } from '../types/index.js';
 import { signalDAO } from '../database/signal-dao.js';
+import { SIGNAL_TYPES } from '../config/signal-rules.js';
 
 const signalsRouter = new Hono();
 
@@ -261,7 +262,7 @@ signalsRouter.post('/batch-delete', async (c) => {
 /**
  * 创建模拟信号（用于测试）
  */
-export function createMockSignal(tweet: any, type: string = 'demand'): Signal {
+export function createMockSignal(tweet: any, type: string = SIGNAL_TYPES.TECH_PRODUCT): Signal {
   const score = calculateSignalScore(tweet, type);
   const content = generateSignalContent(tweet, type);
 
@@ -302,11 +303,11 @@ function calculateSignalScore(tweet: any, type: string): number {
   if (tweet.links && tweet.links.length > 0) score += 0.2;
   if (tweet.media && tweet.media.length > 0) score += 0.1;
 
+  // 热门议题加成
   const typeBonus: Record<string, number> = {
-    demand: 0.5,
-    revenue: 0.8,
-    skill: 0.3,
-    trend: 0.4,
+    [SIGNAL_TYPES.TECH_PRODUCT]: 0.5,
+    [SIGNAL_TYPES.SOCIAL_VIRAL]: 0.8,
+    [SIGNAL_TYPES.BUSINESS_STARTUP]: 0.4,
   };
   score += typeBonus[type] || 0;
 
@@ -317,76 +318,51 @@ function calculateSignalScore(tweet: any, type: string): number {
  * 根据类型生成信号内容
  */
 function generateSignalContent(tweet: any, type: string): any {
-  const text = tweet.text.toLowerCase();
-
+  // 根据不同的议题类型生成默认内容
   switch (type) {
-    case 'demand':
+    case SIGNAL_TYPES.TECH_PRODUCT:
       return {
-        summary: `💡 需求缺口: ${tweet.text.slice(0, 40)}...`,
-        description: '检测到明确的市场需求，用户愿意为此付费或寻找解决方案。',
-        reason: '推文表达了具体的痛点或未满足的需求',
-        actionPlan: [
-          '验证需求规模和目标受众',
-          '调研现有解决方案的不足',
-          '设计最小可行产品 (MVP)',
-          '快速推向市场获取反馈',
-        ],
-        skills: ['产品管理', '用户调研', 'MVP 开发'],
-        competition: '需求明确，执行是关键',
+        summary: `📱 技术动态: ${tweet.text.slice(0, 40)}...`,
+        description: '发现新的技术趋势或产品动态，值得关注。',
+        reason: '涉及 AI、Web3 或开发工具的更新',
+        actionPlan: ['了解技术细节', '评估应用场景'],
+        skills: ['技术调研', '产品分析'],
+        competition: '技术迭代快',
       };
-
-    case 'revenue':
+    case SIGNAL_TYPES.BUSINESS_STARTUP:
       return {
-        summary: `💰 收入验证: ${tweet.text.slice(0, 40)}...`,
-        description: '真实的收入分享，证明商业模式可行。',
-        reason: '作者分享了具体的收入数字和增长趋势',
-        actionPlan: [
-          '分析其商业模式和获客渠道',
-          '评估是否可以复制或改进',
-          '寻找差异化竞争点',
-          '小规模验证自己的想法',
-        ],
-        skills: ['商业模式分析', '竞品研究', '数据驱动'],
-        competition: '已验证可行，需要差异化',
+        summary: `💼 商业机会: ${tweet.text.slice(0, 40)}...`,
+        description: '有价值的商业洞察或创业经验分享。',
+        reason: '涉及商业模式、增长或融资',
+        actionPlan: ['分析商业逻辑', '参考增长策略'],
+        skills: ['商业分析', '市场洞察'],
+        competition: '商业竞争激烈',
       };
-
-    case 'skill':
+    case SIGNAL_TYPES.INCOME_MONETIZATION:
       return {
-        summary: `🛠️ 技能需求: ${tweet.text.slice(0, 40)}...`,
-        description: '市场对特定技能的需求正在增长。',
-        reason: '推文提到特定技能的稀缺性或高价值',
-        actionPlan: [
-          '评估该技能的学习成本',
-          '查找示范项目和作品集',
-          '考虑兼职或自由职业验证',
-          '建立个人品牌',
-        ],
-        skills: ['技能学习', '个人品牌', '自由职业'],
-        competition: '技能门槛决定竞争程度',
+        summary: `💰 变现思路: ${tweet.text.slice(0, 40)}...`,
+        description: '探索可能的收入渠道或变现模式。',
+        reason: '涉及副业、自由职业或被动收入',
+        actionPlan: ['验证变现模式', '评估投入产出'],
+        skills: ['运营', '销售'],
+        competition: '执行力是关键',
       };
-
-    case 'trend':
+    case SIGNAL_TYPES.SOCIAL_VIRAL:
       return {
-        summary: `📈 趋势机会: ${tweet.text.slice(0, 40)}...`,
-        description: '新兴趋势或市场变化，存在早期机会。',
-        reason: '推文反映了新的趋势或市场变化',
-        actionPlan: [
-          '深入研究趋势背后的驱动因素',
-          '判断是短期热点还是长期趋势',
-          '寻找可以快速切入的细分领域',
-          '建立先发优势',
-        ],
-        skills: ['趋势分析', '快速执行', '内容营销'],
-        competition: '早期进入者优势明显',
+        summary: `🌍 社会热点: ${tweet.text.slice(0, 40)}...`,
+        description: '当前全网关注的热门事件。',
+        reason: '短时间内获得大量互动',
+        actionPlan: ['关注事态发展', '了解各方观点'],
+        skills: ['信息筛选'],
+        competition: '热度持续时间短',
       };
-
     default:
       return {
-        summary: `信号: ${tweet.text.slice(0, 50)}...`,
-        description: '检测到潜在的赚钱机会',
-        reason: '基于推文内容分析',
-        actionPlan: ['进一步分析', '验证假设', '小规模测试'],
-        skills: ['分析', '执行'],
+        summary: `💡 趋势信号: ${tweet.text.slice(0, 40)}...`,
+        description: '检测到值得关注的行业动态或观点。',
+        reason: '内容具有一定公共价值',
+        actionPlan: ['进一步了解', '持续关注'],
+        skills: ['学习', '思考'],
         competition: '待评估',
       };
   }

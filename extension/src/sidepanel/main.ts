@@ -130,7 +130,7 @@ function renderEmptyWithHint(): void {
       </svg>
       <p style="font-size: 16px;">${isSavedView ? '暂无保存的信号' : '暂无信号'}</p>
       <p style="font-size: 13px; color: #8899a6; margin-top: 8px;">
-        ${isSavedView ? '点击🔖保存感兴趣的信号' : '浏览 Twitter 时我们会自动发现赚钱机会'}
+        ${isSavedView ? '点击🔖保存感兴趣的信号' : '浏览 Twitter 时我们会自动发现热门议题'}
       </p>
     </div>
   `;
@@ -197,10 +197,13 @@ function renderHeader(): string {
       ${currentView === 'all' ? `
         <div class="filter-chips">
           <button class="chip ${currentFilter === 'all' ? 'active' : ''}" onclick="setFilter('all')">全部</button>
-          <button class="chip ${currentFilter === 'demand' ? 'active' : ''}" onclick="setFilter('demand')">需求</button>
-          <button class="chip ${currentFilter === 'revenue' ? 'active' : ''}" onclick="setFilter('revenue')">收入</button>
-          <button class="chip ${currentFilter === 'skill' ? 'active' : ''}" onclick="setFilter('skill')">技能</button>
-          <button class="chip ${currentFilter === 'trend' ? 'active' : ''}" onclick="setFilter('trend')">趋势</button>
+          <button class="chip ${currentFilter === 'tech_product' ? 'active' : ''}" onclick="setFilter('tech_product')">技术</button>
+          <button class="chip ${currentFilter === 'business_startup' ? 'active' : ''}" onclick="setFilter('business_startup')">商业</button>
+          <button class="chip ${currentFilter === 'income_monetization' ? 'active' : ''}" onclick="setFilter('income_monetization')">搞钱</button>
+          <button class="chip ${currentFilter === 'data_insights' ? 'active' : ''}" onclick="setFilter('data_insights')">数据</button>
+          <button class="chip ${currentFilter === 'skills_learning' ? 'active' : ''}" onclick="setFilter('skills_learning')">技能</button>
+          <button class="chip ${currentFilter === 'opinion_discussion' ? 'active' : ''}" onclick="setFilter('opinion_discussion')">观点</button>
+          <button class="chip ${currentFilter === 'social_viral' ? 'active' : ''}" onclick="setFilter('social_viral')">热点</button>
         </div>
       ` : ''}
 
@@ -221,13 +224,21 @@ function renderHeader(): string {
  */
 function renderSignalCard(signal: Signal): string {
   const typeLabels: Record<string, string> = {
-    // 新版 - 热门议题
+    // 新版 - 7大热门议题（匹配后端）
+    tech_product: '📱 技术与产品',
+    business_startup: '💼 商业与创投',
+    income_monetization: '💰 搞钱与副业',
+    data_insights: '📊 数据与洞察',
+    skills_learning: '🎯 技能与成长',
+    opinion_discussion: '💡 观点与讨论',
+    social_viral: '🔥 爆发与热点',
+
+    // 旧版 - 向后兼容
     viral: '🔥 爆发话题',
     insightful: '💡 深度讨论',
     data_driven: '📊 数据观点',
     industry_news: '🎯 行业动态',
     controversial: '⚡ 争议议题',
-    // 旧版 - 向后兼容
     demand: '需求缺口',
     revenue: '收入验证',
     skill: '技能需求',
@@ -235,13 +246,21 @@ function renderSignalCard(signal: Signal): string {
   };
 
   const typeColors: Record<string, string> = {
-    // 新版 - 热门议题
+    // 新版 - 7大热门议题（匹配后端）
+    tech_product: '#1d9bf0',
+    business_startup: '#00ba7c',
+    income_monetization: '#ffd400',
+    data_insights: '#f91880',
+    skills_learning: '#7856ff',
+    opinion_discussion: '#ff7a00',
+    social_viral: '#f4212e',
+
+    // 旧版 - 向后兼容
     viral: '#ff6b35',
     insightful: '#4ecdc4',
     data_driven: '#45b7d1',
     industry_news: '#96ceb4',
     controversial: '#ffeaa7',
-    // 旧版 - 向后兼容
     demand: '#1fa1f1',
     revenue: '#17bf63',
     skill: '#ffd700',

@@ -1,0 +1,242 @@
+/**
+ * RawTweetCard 样式
+ * 显示尚未完成 AI 分析的原始推文
+ */
+
+.raw-tweet-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  position: relative;
+  transition: border-color 0.2s ease;
+}
+
+.raw-tweet-card:hover {
+  border-color: var(--border-hover);
+}
+
+/* Header */
+.raw-tweet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.raw-tweet-header-left {
+  display: flex;
+  gap: var(--spacing-xs);
+  align-items: center;
+}
+
+.raw-tweet-header-right {
+  display: flex;
+  align-items: center;
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.status-badge.pending {
+  background: rgba(255, 193, 7, 0.15);
+  color: #ffc107;
+}
+
+.status-badge.analyzing {
+  background: rgba(33, 150, 243, 0.15);
+  color: #2196f3;
+}
+
+.status-badge.completed {
+  background: rgba(76, 175, 80, 0.15);
+  color: #4caf50;
+}
+
+.status-badge.failed {
+  background: rgba(244, 67, 54, 0.15);
+  color: #f44336;
+}
+
+.status-badge.unknown {
+  background: rgba(158, 158, 158, 0.15);
+  color: #9e9e9e;
+}
+
+/* Predicted Type Badge */
+.predicted-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(103, 58, 183, 0.15);
+  color: #673ab7;
+  white-space: nowrap;
+}
+
+/* Timestamp */
+.timestamp {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Author */
+.tweet-author {
+  margin-bottom: var(--spacing-sm);
+}
+
+.author-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.author-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.verified-badge {
+  color: #1da1f2;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.author-username {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Content */
+.tweet-content {
+  margin-bottom: var(--spacing-sm);
+}
+
+.tweet-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.tweet-media {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin-top: var(--spacing-sm);
+}
+
+.tweet-media-item {
+  width: 100%;
+  border-radius: var(--border-radius);
+  object-fit: cover;
+  max-height: 200px;
+}
+
+/* Engagement */
+.tweet-engagement {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+}
+
+.engagement-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.engagement-icon {
+  font-size: 14px;
+}
+
+.engagement-count {
+  font-weight: 500;
+}
+
+/* Footer */
+.raw-tweet-footer {
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--border-color);
+}
+
+.view-tweet-link {
+  font-size: 12px;
+  color: #1da1f2;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.view-tweet-link:hover {
+  text-decoration: underline;
+}
+
+/* Analyzing Animation */
+.analyzing-animation {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.95);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2196f3;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes pulse {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .analyzing-animation {
+    background: rgba(30, 30, 30, 0.95);
+  }
+}

@@ -9,17 +9,14 @@
  */
 
 import type { AnalysisResult } from './base-agent.js';
-import { ViralAgent } from './viral-agent.js';
-import { InsightfulAgent } from './insightful-agent.js';
-import { DataDrivenAgent } from './data-driven-agent.js';
-import { IndustryNewsAgent } from './industry-news-agent.js';
-import { ControversialAgent } from './controversial-agent.js';
+import { TopicAgent } from './topic-agent.js';
 import type { TweetData, Signal, SignalType } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { AI_CONFIG } from '../config/ai.js';
 import {
   ORCHESTRATOR_SYSTEM_PROMPT,
   SIGNAL_TYPES,
+  AGENT_PROMPTS,
   PREFILTER_RULES,
   HOT_TOPIC_KEYWORDS,
   calculateRawViralityScore,
@@ -30,19 +27,27 @@ import {
 export class OrchestratorAgent {
   protected readonly config = AI_CONFIG;
 
-  // 新的专项 Agent
-  private viralAgent: ViralAgent;
-  private insightfulAgent: InsightfulAgent;
-  private dataDrivenAgent: DataDrivenAgent;
-  private industryNewsAgent: IndustryNewsAgent;
-  private controversialAgent: ControversialAgent;
+  // 议题分析 Agent 集合
+  private agents: Map<SignalType, TopicAgent>;
 
   constructor() {
-    this.viralAgent = new ViralAgent();
-    this.insightfulAgent = new InsightfulAgent();
-    this.dataDrivenAgent = new DataDrivenAgent();
-    this.industryNewsAgent = new IndustryNewsAgent();
-    this.controversialAgent = new ControversialAgent();
+    this.agents = new Map();
+    this.initializeAgents();
+  }
+
+  /**
+   * 初始化所有议题 Agent
+   */
+  private initializeAgents() {
+    // 遍历所有信号类型，创建对应的 TopicAgent
+    for (const type of Object.values(SIGNAL_TYPES)) {
+      const prompt = AGENT_PROMPTS[type];
+      if (prompt) {
+        this.agents.set(type, new TopicAgent(type, prompt, type));
+      } else {
+        logger.warn(`[Orchestrator] No prompt defined for signal type: ${type}`);
+      }
+    }
   }
 
   /**
@@ -59,13 +64,15 @@ export class OrchestratorAgent {
       }
 
       // 分配给推荐的 Agent
-      const agent = this.getAgent(decision.recommendedType || SIGNAL_TYPES.VIRAL);
+      const recommendedType = decision.recommendedType as SignalType;
+      const agent = this.getAgent(recommendedType || SIGNAL_TYPES.TECH_PRODUCT);
+      
       if (!agent) {
-        logger.warn(`[Orchestrator] Unknown agent type: ${decision.recommendedType}`);
+        logger.warn(`[Orchestrator] Unknown agent type: ${recommendedType}`);
         return null;
       }
 
-      logger.info(`[Orchestrator] Delegating tweet ${tweet.id} to ${decision.recommendedType} agent`);
+      logger.info(`[Orchestrator] Delegating tweet ${tweet.id} to ${recommendedType} agent`);
 
       // 让专项 Agent 分析
       const result = await agent.analyze(tweet);
@@ -183,29 +190,17 @@ ${tweet.text}
   } {
     const text = tweet.text.toLowerCase();
 
-    // 根据关键词判断类型
+    // 根据关键词判断类型 (映射到新的7大议题)
     for (const [category, keywords] of Object.entries(HOT_TOPIC_KEYWORDS)) {
       for (const keyword of keywords) {
         if (text.includes(keyword.toLowerCase())) {
-          let type: SignalType = SIGNAL_TYPES.INSIGHTFUL;
+          let type: SignalType = SIGNAL_TYPES.TECH_PRODUCT; // 默认回退
           let reason = `包含 ${category} 关键词`;
 
-          // 根据类别映射到信号类型
-          switch (category) {
-            case 'tech':
-            case 'industry':
-              type = SIGNAL_TYPES.INDUSTRY_NEWS as any;
-              break;
-            case 'data':
-              type = SIGNAL_TYPES.DATA_DRIVEN as any;
-              break;
-            case 'discussion':
-              type = SIGNAL_TYPES.CONTROVERSIAL as any;
-              break;
-            case 'opinion':
-            case 'tutorial':
-              type = SIGNAL_TYPES.INSIGHTFUL as any;
-              break;
+          // 直接使用 category 作为 type，因为 HOT_TOPIC_KEYWORDS 的 key 现在与 SIGNAL_TYPES 的 value 一致
+          // 但为了类型安全，我们做一个显式映射或断言
+          if (Object.values(SIGNAL_TYPES).includes(category as SignalType)) {
+             type = category as SignalType;
           }
 
           return {
@@ -217,20 +212,20 @@ ${tweet.text}
       }
     }
 
-    // 高热度推文默认为爆发话题
+    // 高热度推文默认为社会热点
     if (viralityTier === 'viral' || viralityTier === 'high') {
       return {
         shouldAnalyze: true,
-        recommendedType: SIGNAL_TYPES.VIRAL,
+        recommendedType: SIGNAL_TYPES.SOCIAL_VIRAL,
         reason: '高热度内容',
       };
     }
 
-    // 中等热度推文默认为深度讨论
+    // 中等热度推文默认为观点讨论
     if (viralityTier === 'significant' || viralityTier === 'notable') {
       return {
         shouldAnalyze: true,
-        recommendedType: SIGNAL_TYPES.INSIGHTFUL,
+        recommendedType: SIGNAL_TYPES.OPINION_DISCUSSION,
         reason: '中等热度有价值内容',
       };
     }
@@ -241,27 +236,8 @@ ${tweet.text}
   /**
    * 获取指定的 Agent
    */
-  private getAgent(type: string):
-    | ViralAgent
-    | InsightfulAgent
-    | DataDrivenAgent
-    | IndustryNewsAgent
-    | ControversialAgent
-    | null {
-    switch (type) {
-      case SIGNAL_TYPES.VIRAL:
-        return this.viralAgent;
-      case SIGNAL_TYPES.INSIGHTFUL:
-        return this.insightfulAgent;
-      case SIGNAL_TYPES.DATA_DRIVEN:
-        return this.dataDrivenAgent;
-      case SIGNAL_TYPES.INDUSTRY_NEWS:
-        return this.industryNewsAgent;
-      case SIGNAL_TYPES.CONTROVERSIAL:
-        return this.controversialAgent;
-      default:
-        return null;
-    }
+  private getAgent(type: SignalType): TopicAgent | null {
+    return this.agents.get(type) || null;
   }
 
   /**
@@ -314,7 +290,8 @@ ${tweet.text}
     const anthropic = new Anthropic(clientConfig);
 
     try {
-      const response = await anthropic.messages.create({
+      // 使用流式调用以避免超时限制
+      const stream = await anthropic.messages.create({
         model: this.config.model,
         max_tokens: this.config.maxTokens,
         temperature: this.config.temperature,
@@ -325,14 +302,17 @@ ${tweet.text}
             content: userPrompt,
           },
         ],
+        stream: true,
       });
 
-      const content = response.content[0];
-      if (content.type === 'text') {
-        return content.text;
+      let fullText = '';
+      for await (const chunk of stream) {
+        if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+          fullText += chunk.delta.text;
+        }
       }
 
-      throw new Error('Unexpected response type from Claude');
+      return fullText;
     } catch (error) {
       logger.error(`[Orchestrator] Claude API error:`, error);
       throw error;

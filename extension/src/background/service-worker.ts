@@ -255,21 +255,11 @@ async function handleGetKeywordsForTopics(data?: { topicIds: string[] }) {
       throw new Error('Invalid topic IDs');
     }
 
-    // 导入议题配置
-    const { TOPIC_CATEGORIES } = await import('../shared/types/topics');
-    const keywords: string[] = [];
+    // 导入议题配置 - 使用新的 TOPICS 数组
+    const { TOPICS, getKeywordsForTopicIds } = await import('../shared/types/topics');
 
-    for (const categoryId in TOPIC_CATEGORIES) {
-      const category = TOPIC_CATEGORIES[categoryId];
-      for (const topic of category.topics) {
-        if (data.topicIds.includes(topic.id)) {
-          keywords.push(...topic.keywords);
-        }
-      }
-    }
-
-    // 去重
-    return [...new Set(keywords)];
+    // 使用工具函数获取关键词
+    return getKeywordsForTopicIds(data.topicIds);
   } catch (error) {
     logger.error('Failed to get keywords for topics:', error);
     throw error;
@@ -280,15 +270,17 @@ async function handleGetKeywordsForTopics(data?: { topicIds: string[] }) {
  * 设置默认配置
  */
 function setupDefaultConfig(): void {
-  chrome.storage.local.get(['config'], (result) => {
-    if (!result.config) {
-      const defaultConfig = {
-        enabled: true,
-        signalTypes: ['demand', 'revenue', 'skill', 'trend'],
-        language: 'auto',
-      };
-      chrome.storage.local.set({ config: defaultConfig });
-      logger.info('Default config set');
+  chrome.storage.local.get(['topicConfig'], (result) => {
+    if (!result.topicConfig) {
+      // 导入默认配置
+      import('../shared/types/topics').then(({ DEFAULT_TOPICS }) => {
+        const defaultConfig = {
+          enabledTopics: DEFAULT_TOPICS,
+          lastUpdated: Date.now(),
+        };
+        chrome.storage.local.set({ topicConfig: defaultConfig });
+        logger.info('Default topic config set:', defaultConfig);
+      });
     }
   });
 }

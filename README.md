@@ -1,329 +1,91 @@
-# Money Signal
+# 趋势信号 (Trend Signal Free - TSF)
 
-> Twitter 上的赚钱机会探测器 - 用 AI 发现市场需求、收入验证、技能需求和趋势机会
+> "计算机应该为人服务，而不是人服务于计算机。" — *致敬 Alan Cooper 的目标导向设计理念*
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
-[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-green.svg)](https://chrome.google.com/webstore)
+## 🌟 产品愿景
 
----
+Twitter (X) 是世界的脉搏，但它往往被海量的噪音所掩盖。作为一名"洞察猎人"——无论你是开发者、创业者还是创作者——你的目标不是*刷屏*，而是**发现**。
 
-## 项目概述
+**趋势信号 (TSF)** 的设计初衷只有一个：**尊重你的注意力**。
 
-Money Signal 是一款基于 Chrome 浏览器的扩展程序，通过 AI 分析 Twitter 推文，自动识别和提取有价值的赚钱机会信号。采用 **Local First** 架构，所有数据存储在本地，完全保护用户隐私。
+TSF 不会强迫你在成千上万条推文中筛选信息，而是作为你安静、智能的雷达。它静静地驻留在浏览器中，实时分析你的时间线，只在检测到值得你投入认知的信号时才会发出提醒。
 
-### 核心特性
+## 🎯 核心功能
 
-- 🔍 **自动发现**: 实时分析 Twitter 推文，自动识别赚钱机会
-- 🤖 **AI 驱动**: 使用 Claude AI 深度分析推文内容
-- 💡 **四种信号类型**: 需求缺口、收入验证、技能需求、趋势机会
-- ⭐ **智能评分**: 基于多维度因素计算信号价值
-- 🔖 **简化交互**: 单一书签图标操作，符合 Alan Cooper 设计原则
-- 💾 **本地优先**: 数据存储在本地 SQLite 数据库
-- 🔒 **隐私保护**: 无需账户，完全匿名使用
+TSF 将你混乱的 Twitter 时间线转化为结构化的机会仪表盘。
 
-### 信号类型
+### 1. 自动化信号检测
+你不需要做任何额外操作。只需像往常一样浏览 Twitter，TSF 会在后台默默工作：
+- **捕获**：抓取你时间线上的推文。
+- **评分**：基于互动数据和关键词进行即时评分。
+- **分析**：使用先进的 AI (Claude/GLM) 提取核心价值。
 
-| 类型 | 图标 | 描述 | 示例 |
-|-----|------|------|-----|
-| **需求缺口** | 💡 | 用户愿意付费的明确需求 | "Looking for a tool that can..." |
-| **收入验证** | 💰 | 真实的收入分享证明 | "Just made $10K from my side project..." |
-| **技能需求** | 🛠️ | 市场对特定技能的需求 | "Hiring: React developer with..." |
-| **趋势机会** | 📈 | 新兴趋势和早期机会 | "AI is revolutionizing..." |
+### 2. 七大价值透镜
+我们将噪音过滤为 7 个独特的高价值信号分类：
+- **📱 技术与产品**：AI 突破、新工具发布、Web3 动态。
+- **💼 商业与创业**：融资新闻、独立开发者故事、增长策略。
+- **💰 收入与变现**：副业机会、收入报告、自由职业。
+- **📊 数据与洞察**：行业报告、增长指标、趋势分析。
+- **🎯 技能与学习**：教程指南、设计技巧、效率工具。
+- **💡 观点与讨论**：深度长文、热门观点、行业争议。
+- **🔥 社会热点**：突发新闻和重大事件。
 
----
+### 3. "纸墨 (Paper & Ink)" 设计风格
+受印刷媒体清晰度的启发，我们的界面采用"纸墨"美学：
+- **宁静配色**：护眼的淡米色背景。
+- **清晰排版**：高对比度，确保阅读体验。
+- **零干扰**：没有多余的按钮，只有纯粹的信号。
 
-## 快速开始
+## 🚀 快速开始
 
-### 环境要求
+TSF 采用 **Local-First (本地优先)** 架构构建。你的数据完全掌握在你手中。
 
-- Node.js 23.x+
-- pnpm 9.x+
-- Chrome 浏览器
+### 前置要求
+- Node.js & pnpm
+- Chrome 内核浏览器 (Chrome, Edge, Arc 等)
+- API Key (支持 Anthropic 或 GLM 兼容接口)
 
-### 安装
+### 安装指南
+
+#### 1. 启动智能引擎 (后端)
+后端负责处理繁重的任务——AI 分析和数据库存储。
 
 ```bash
-# 克隆项目
-git clone <repository-url>
-cd twitterAnt
-
-# 安装后端依赖
 cd backend
 pnpm install
-
-# 安装扩展依赖
-cd ../extension
-pnpm install
-```
-
-### 配置
-
-创建 `backend/.env` 文件：
-
-```env
-# Anthropic Claude API (可选，用于 AI 分析)
-ANTHROPIC_API_KEY=sk-ant-your-key-here
-
-# 服务配置
-PORT=3001
-NODE_ENV=development
-```
-
-### 启动
-
-**终端 1 - 后端服务**:
-```bash
-cd backend
+# 创建 .env 文件并配置你的 API Key (参考 .env.example)
 pnpm dev
 ```
 
-**终端 2 - 扩展构建**:
-```bash
-cd extension
-pnpm build:watch
-```
+*服务器将在 `http://localhost:3001` 启动。*
 
-### 加载扩展
+#### 2. 加载用户界面 (插件)
+插件将你的浏览器连接到智能引擎。
 
-1. 打开 Chrome，访问 `chrome://extensions/`
-2. 启用「开发者模式」
-3. 点击「加载已解压的扩展程序」
-4. 选择 `extension/dist` 目录
+1.  打开浏览器的扩展管理页面 (`chrome://extensions`)。
+2.  开启右上角的 **开发者模式 (Developer Mode)**。
+3.  点击 **加载已解压的扩展程序 (Load Unpacked)**。
+4.  选择本项目中的 `extension/dist` 文件夹。
+    *   *注意：如果找不到 `dist` 文件夹，请先运行 `cd extension && pnpm build`。*
 
----
+### 如何使用
 
-## 项目结构
+1.  **浏览**：打开 Twitter (X.com)。你会看到 TSF 在后台激活。
+2.  **等待**：当你滚动浏览时，TSF 会自动分析推文。
+3.  **发现**：点击 TSF 图标打开侧边栏。
+    *   **筛选**：在"技术"、"商业"、"搞钱"等标签间切换。
+    *   **阅读**：查看 AI 生成的摘要和行动建议。
+    *   **收藏**：将感兴趣的信号加入书签。
 
-```
-twitterAnt/
-├── backend/                 # 后端服务 (Hono + Node.js)
-│   ├── src/
-│   │   ├── agents/         # AI Agent 系统
-│   │   ├── config/         # 配置文件
-│   │   ├── database/       # 数据库 (sql.js + SQLite)
-│   │   ├── routes/         # API 路由
-│   │   ├── types/          # TypeScript 类型
-│   │   └── index.ts        # 服务入口
-│   └── data/               # 本地数据库
-│
-├── extension/              # Chrome 扩展
-│   ├── src/
-│   │   ├── background/     # Service Worker
-│   │   ├── content/        # Content Script
-│   │   ├── sidepanel/      # Side Panel UI
-│   │   └── shared/         # 共享代码
-│   └── manifest.json       # 扩展清单
-│
-└── Docs/                   # 项目文档
-    ├── 06-feature-specification-20260101.md
-    ├── 07-architecture-overview-20260101.md
-    └── 08-quick-start-guide-20260101.md
-```
+## 🛠 技术哲学
+
+为性能和隐私而生。
+
+- **前端**：React + Vite (快速、响应式的 UI)。
+- **后端**：Hono (轻量级、边缘就绪)。
+- **数据库**：SQLite (本地文件存储，无需云端配置)。
+- **AI**：Agentic Workflow (编排器 -> 领域专家 Agent)。
 
 ---
 
-## 文档
-
-### 核心文档
-
-| 文档 | 描述 |
-|-----|------|
-| [功能说明文档](./Docs/06-feature-specification-20260101.md) | 完整的功能说明和用户指南 |
-| [架构概览](./Docs/07-architecture-overview-20260101.md) | 系统架构和数据流详解 |
-| [快速开始指南](./Docs/08-quick-start-guide-20260101.md) | 开发者快速入门 |
-| [项目结构](./Docs/01-project-structure.md) | 目录结构说明 |
-| [技术实现](./Docs/02-technical-implementation.md) | 技术实现细节 |
-| [API 设计](./Docs/03-api-design.md) | REST API 规范 |
-| [数据库设计](./Docs/04-database-design.md) | 数据库 Schema |
-| [开发路线图](./Docs/05-development-roadmap.md) | 未来规划 |
-
----
-
-## 技术栈
-
-### 后端
-
-- **运行时**: Node.js 23.x
-- **框架**: Hono 4.x
-- **数据库**: sql.js (SQLite)
-- **AI**: Anthropic Claude API
-- **语言**: TypeScript 5.x
-
-### 扩展
-
-- **平台**: Chrome Extension Manifest V3
-- **语言**: TypeScript 5.x
-- **构建工具**: Vite 5.x
-- **包管理器**: pnpm 9.x
-
----
-
-## 开发
-
-### 本地开发
-
-```bash
-# 后端开发
-cd backend
-pnpm dev
-
-# 扩展开发
-cd extension
-pnpm build:watch
-```
-
-### 构建
-
-```bash
-# 后端
-cd backend
-pnpm build
-
-# 扩展
-cd extension
-pnpm build
-```
-
-### 测试
-
-```bash
-# 运行测试
-pnpm test
-
-# 测试覆盖率
-pnpm test:coverage
-```
-
----
-
-## API 示例
-
-### 提交推文
-
-```bash
-POST /api/v1/tweets/batch
-Content-Type: application/json
-
-{
-  "tweets": [
-    {
-      "id": "1234567890",
-      "text": "Looking for a tool that can automate...",
-      "author": {
-        "username": "johndoe",
-        "displayName": "John Doe",
-        "verified": true,
-        "followerCount": 50000
-      },
-      "engagement": {
-        "replies": 10,
-        "retweets": 25,
-        "likes": 150,
-        "views": 5000
-      },
-      "timestamp": "2026-01-01T12:00:00Z",
-      "url": "https://twitter.com/johndoe/status/1234567890",
-      "type": "original"
-    }
-  ]
-}
-```
-
-### 获取信号
-
-```bash
-GET /api/v1/signals?type=demand&savedOnly=true&limit=20
-```
-
-### 切换书签
-
-```bash
-PATCH /api/v1/signals/:id/bookmark
-```
-
----
-
-## 设计理念
-
-### Alan Cooper 交互设计原则
-
-- **简化交互**: 单一书签图标操作，减少认知负荷
-- **目标导向**: 快速筛选和保存感兴趣的信号
-- **即时反馈**: 清晰的视觉状态指示
-
-### Local First 架构
-
-- **数据所有权**: 用户数据存储在本地
-- **隐私保护**: 无需账户，完全匿名
-- **离线可用**: 核心功能不依赖网络
-- **数据可移植**: 用户可导出和备份
-
----
-
-## 路线图
-
-### v1.0.0 (当前版本)
-
-- ✅ 四种信号类型识别
-- ✅ AI Agent 分析系统
-- ✅ Local First 数据存储
-- ✅ 简化的书签交互
-- ✅ Side Panel UI
-
-### 未来版本
-
-- ⏳ 推送通知功能
-- ⏳ 数据导出功能
-- ⏳ 自定义信号过滤器
-- ⏳ 多语言支持
-- ⏳ 统计仪表板
-- ⏳ Firefox 版本
-
----
-
-## 贡献指南
-
-欢迎贡献！请遵循以下步骤：
-
-1. Fork 本仓库
-2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'feat: add amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 开启 Pull Request
-
-### 提交信息规范
-
-- `feat`: 新功能
-- `fix`: 修复 Bug
-- `docs`: 文档更新
-- `style`: 代码格式调整
-- `refactor`: 代码重构
-- `test`: 测试相关
-- `chore`: 构建/工具链相关
-
----
-
-## 许可证
-
-MIT License - 详见 [LICENSE](LICENSE) 文件
-
----
-
-## 致谢
-
-- [Alan Cooper](https://www.cooper.com/) - 交互设计理念
-- [Anthropic](https://www.anthropic.com/) - Claude AI API
-- [Hono](https://hono.dev/) - 轻量级 Web 框架
-- [sql.js](https://sql.js.org/) - 纯 JavaScript SQLite
-
----
-
-## 联系方式
-
-- **Issues**: [GitHub Issues](../../issues)
-- **Discussions**: [GitHub Discussions](../../discussions)
-
----
-
-**Money Signal** - 让每一个推文都成为赚钱机会 💰
+*Designed with ❤️ for the thoughtful explorer.*

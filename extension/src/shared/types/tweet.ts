@@ -86,18 +86,24 @@ export interface Signal {
 }
 
 export type SignalType =
-  // 新版 - 热门议题类型
-  | 'viral'           // 爆发话题
-  | 'insightful'      // 深度讨论
-  | 'data_driven'     // 数据观点
-  | 'industry_news'   // 行业动态
-  | 'controversial';  // 争议议题
-
-// 旧版 - 赚钱类类型（保留用于向后兼容）
-// | 'demand'
-// | 'revenue'
-// | 'skill'
-// | 'trend';
+  // 新版 - 7大热门议题（匹配后端）
+  | 'tech_product'        // 技术与产品
+  | 'business_startup'    // 商业与创投
+  | 'income_monetization' // 搞钱与副业
+  | 'data_insights'       // 数据与洞察
+  | 'skills_learning'     // 技能与成长
+  | 'opinion_discussion'  // 观点与讨论
+  | 'social_viral'        // 爆发与热点
+  // 旧版 - 向后兼容
+  | 'viral'
+  | 'insightful'
+  | 'data_driven'
+  | 'industry_news'
+  | 'controversial'
+  | 'demand'
+  | 'revenue'
+  | 'skill'
+  | 'trend';
 
 /**
  * 用户反馈类型
