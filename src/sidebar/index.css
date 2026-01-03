@@ -3,22 +3,27 @@
 @tailwind utilities;
 
 :root {
-  /* 宁静模式 (Serene) - 默认 */
-  --bg-primary: #faf8f5;
-  --bg-secondary: #f5f1ed;
+  /* Claude Theme - Warm Beige */
+  --bg-primary: #fbf9f6; /* Warm beige background */
+  --bg-secondary: #f0ebe6;
   --card-bg: #ffffff;
-  --hover-bg: #f0ebe6;
+  --hover-bg: #eceae5;
   
-  --text-primary: #2d2d2d;
-  --text-secondary: #6b7280;
-  --text-tertiary: #9ca3af;
+  --text-primary: #333333;
+  --text-secondary: #666666;
+  --text-tertiary: #999999;
   
   --border-color: #e5e1dc;
   --border-hover: #d1ccc6;
   
-  --accent-color: #d97706;
+  --accent-color: #d97706; /* Keep original accent for now, or switch to Claude's terracotta if known */
   --accent-hover: #b45309;
-  --accent-light: #fef3c7;
+  --accent-light: #fff8eb;
   
   --tag-bg: #f3f4f6;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
 }

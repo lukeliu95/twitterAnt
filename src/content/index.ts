@@ -11,11 +11,27 @@ class SidebarManager {
   }
 
   init() {
+    // Check saved state
+    chrome.storage.local.get(['sidebarVisible'], (result) => {
+      if (result.sidebarVisible) {
+        this.show();
+      }
+    });
+
     // Listen for toggle message
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.type === 'TOGGLE_SIDEBAR') {
         this.toggle();
         sendResponse({ success: true }); // Respond to acknowledge receipt
+      }
+    });
+
+    // Listen for messages from iframe
+    window.addEventListener('message', (event) => {
+      // Security check: ensure message is from our iframe
+      // In production, you might want to check origin, but extension iframes have chrome-extension:// origin
+      if (event.data.source === 'tsf-sidebar' && event.data.type === 'CLOSE_SIDEBAR') {
+        this.hide();
       }
     });
   }
@@ -35,6 +51,12 @@ class SidebarManager {
     if (this.iframe) {
       this.iframe.style.transform = 'translateX(0)';
       this.isVisible = true;
+      
+      // Shift body content to make room for sidebar
+      document.body.style.transition = 'margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+      document.body.style.marginRight = '420px';
+      
+      chrome.storage.local.set({ sidebarVisible: true });
     }
   }
 
@@ -42,6 +64,11 @@ class SidebarManager {
     if (this.iframe) {
       this.iframe.style.transform = 'translateX(100%)';
       this.isVisible = false;
+      
+      // Reset body content
+      document.body.style.marginRight = '0px';
+      
+      chrome.storage.local.set({ sidebarVisible: false });
     }
   }
 
@@ -79,6 +106,9 @@ class TweetCapture {
   start() {
     console.log('TSF Content Script Started');
     
+    // Attempt to detect current user handle periodically
+    this.detectCurrentUser();
+
     // Listen for DOM mutations
     this.observer = new MutationObserver((mutations) => {
       this.detectNewTweets(mutations);
@@ -103,10 +133,61 @@ class TweetCapture {
     }
   }
 
+  detectCurrentUser() {
+    // Try to find the profile link in the side navigation
+    // usually: <a href="/handle" aria-label="Profile" ...>
+    // or look for the account switcher button at the bottom left
+    
+    const findHandle = () => {
+      // Strategy 1: Look for Profile link in navigation
+      const profileLink = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
+      if (profileLink) {
+        const href = profileLink.getAttribute('href');
+        if (href && href.startsWith('/')) {
+          const handle = href.substring(1);
+          console.log('TSF: Detected user handle from nav:', handle);
+          this.saveUserHandle(handle);
+          return true;
+        }
+      }
+
+      // Strategy 2: Look for Account Switcher
+      const accountSwitcher = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
+      if (accountSwitcher) {
+        // usually contains @handle text
+        const text = accountSwitcher.textContent;
+        const match = text?.match(/@(\w+)/);
+        if (match) {
+           console.log('TSF: Detected user handle from switcher:', match[1]);
+           this.saveUserHandle(match[1]);
+           return true;
+        }
+      }
+      
+      return false;
+    };
+
+    // Retry a few times if not found immediately (SPA loading)
+    let attempts = 0;
+    const interval = setInterval(() => {
+      if (findHandle() || attempts > 10) {
+        clearInterval(interval);
+      }
+      attempts++;
+    }, 2000);
+  }
+
+  saveUserHandle(handle: string) {
+    chrome.storage.local.set({ currentUserHandle: handle });
+  }
+
   detectNewTweets(mutations: MutationRecord[]) {
     mutations.forEach(mutation => {
       mutation.addedNodes.forEach(node => {
         if (node instanceof HTMLElement && this.isTweetElement(node)) {
+          // Check if it's a main post or reply
+          if (this.isReply(node)) return;
+
           // It might be the tweet itself or a container containing the tweet
           const tweetNode = node.querySelector('[data-testid="tweet"]') || node;
           if (this.isTweetElement(tweetNode as HTMLElement)) {
@@ -121,6 +202,9 @@ class TweetCapture {
              // Deep check for tweets inside added nodes
              const tweets = node.querySelectorAll('[data-testid="tweet"]');
              tweets.forEach(tweetNode => {
+                 // Check if it's a main post or reply
+                 if (this.isReply(tweetNode as HTMLElement)) return;
+
                  const tweetData = this.extractTweetData(tweetNode as HTMLElement);
                  if (tweetData && tweetData.tweetId && !this.capturedTweets.has(tweetData.tweetId)) {
                     this.batchQueue.push(tweetData);
@@ -135,6 +219,23 @@ class TweetCapture {
     if (this.batchQueue.length >= this.BATCH_SIZE) {
       this.sendBatch();
     }
+  }
+
+  isReply(element: HTMLElement): boolean {
+    // 1. Check for "Replying to" text
+    // Usually in a div with dir="ltr" above the tweet text
+    const textContent = element.innerText || '';
+    if (textContent.includes('Replying to')) {
+        // Double check specific DOM structure if needed, but text heuristic is often enough for simple extension
+        // A more robust way: check for the specific user link in the replying-to section
+        // const replyContext = element.querySelector('[data-testid="socialContext"]'); 
+        // Replies usually have a line like "Replying to @..." which might not be in socialContext but in the tweet header
+        // Let's look for the specific "Replying to" element
+        const replyIndicator = Array.from(element.querySelectorAll('div')).find(div => div.textContent?.startsWith('Replying to @'));
+        if (replyIndicator) return true;
+    }
+    
+    return false;
   }
 
   isTweetElement(node: HTMLElement): boolean {

@@ -5,7 +5,6 @@ export const DUMMY_SIGNALS: Signal[] = [
     signalId: '1',
     tweetId: '1234567890',
     userId: 'user1',
-    category: 'tech_products',
     score: 85,
     aiSummary: 'OpenAI 发布新的 Agent SDK，支持多工具调用和流式响应',
     matchReasons: [
@@ -32,7 +31,6 @@ export const DUMMY_SIGNALS: Signal[] = [
     signalId: '2',
     tweetId: '0987654321',
     userId: 'user1',
-    category: 'business_startup',
     score: 78,
     aiSummary: 'YCombinator S24 批次开放申请，重点关注 AI 垂直应用',
     matchReasons: [

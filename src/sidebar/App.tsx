@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
-import { StatusBar } from './components/StatusBar';
-import { CategoryTabs } from './components/CategoryTabs';
+import { Header } from './components/Header';
+import { Footer } from './components/Footer';
 import { SignalCard } from './components/SignalCard';
+import { SettingsView } from './components/SettingsView';
 import { useStore } from './store';
-import { DEFAULT_CATEGORIES } from '../types';
 import { DUMMY_SIGNALS } from './dummyData';
 
 function App() {
@@ -12,8 +12,8 @@ function App() {
     ui, 
     setSignals, 
     setScanning, 
-    setActiveCategory, 
-    updateSignal 
+    updateSignal,
+    setView
   } = useStore();
 
   useEffect(() => {
@@ -46,15 +46,6 @@ function App() {
     }
   }, []);
 
-  const filteredSignals = ui.activeCategory === 'all' 
-    ? signals 
-    : signals.filter(s => s.category === ui.activeCategory);
-
-  const categoryCounts = DEFAULT_CATEGORIES.reduce((acc, cat) => {
-    acc[cat.id] = signals.filter(s => s.category === cat.id).length;
-    return acc;
-  }, { all: signals.length } as Record<string, number>);
-
   const handleFeedback = (signalId: string, feedback: 'useful' | 'not_interested' | 'wrong') => {
     updateSignal(signalId, { userFeedback: feedback });
     // TODO: Sync to storage
@@ -72,30 +63,35 @@ function App() {
     window.open(url, '_blank');
   };
 
+  const handleClose = () => {
+    // Communicate with parent window (content script)
+    window.parent.postMessage({
+      type: 'CLOSE_SIDEBAR',
+      source: 'tsf-sidebar'
+    }, '*');
+  };
+
+  // Input area logic removed
+  
+  if (ui.view === 'settings') {
+    return <SettingsView onBack={() => setView('list')} />;
+  }
+
   return (
     <div className="flex flex-col h-screen bg-bg-primary text-text-primary overflow-hidden font-sans text-sm">
-      <StatusBar 
-        isScanning={ui.isScanning}
-        scannedCount={ui.scannedCount}
-        signalCount={signals.length}
-        onSettingsClick={() => console.log('Settings clicked')}
-      />
-
-      <CategoryTabs 
-        categories={DEFAULT_CATEGORIES}
-        activeCategory={ui.activeCategory}
-        counts={categoryCounts}
-        onCategoryChange={setActiveCategory}
+      <Header 
+        onSettingsClick={() => setView('settings')}
+        onClose={handleClose}
       />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {filteredSignals.length === 0 ? (
+        {signals.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-text-tertiary">
             <p>暂无信号</p>
-            <p className="text-xs">请稍候或切换分类</p>
+            <p className="text-xs">等待分析...</p>
           </div>
         ) : (
-          filteredSignals.map(signal => (
+          signals.map(signal => (
             <SignalCard 
               key={signal.signalId}
               signal={signal}
@@ -107,10 +103,7 @@ function App() {
         )}
       </div>
 
-      <div className="sticky bottom-0 bg-white border-t border-border-color p-3 flex justify-between items-center text-xs text-text-secondary">
-        <button className="hover:text-accent-color">刷新雷达</button>
-        <button className="hover:text-text-primary">清空已读</button>
-      </div>
+      <Footer />
     </div>
   );
 }

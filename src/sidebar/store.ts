@@ -4,8 +4,8 @@ import { Signal, UserProfile } from '../types';
 interface UIState {
   isScanning: boolean;
   scannedCount: number;
-  activeCategory: string;
   sidebarOpen: boolean;
+  view: 'list' | 'settings';
 }
 
 interface AppState {
@@ -19,9 +19,9 @@ interface AppState {
   updateSignal: (signalId: string, updates: Partial<Signal>) => void;
   setScanning: (isScanning: boolean) => void;
   incrementScannedCount: (count: number) => void;
-  setActiveCategory: (categoryId: string) => void;
   toggleSidebar: (isOpen: boolean) => void;
   setUserProfile: (profile: UserProfile) => void;
+  setView: (view: 'list' | 'settings') => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -30,8 +30,8 @@ export const useStore = create<AppState>((set) => ({
   ui: {
     isScanning: false,
     scannedCount: 0,
-    activeCategory: 'all',
     sidebarOpen: false,
+    view: 'list',
   },
 
   setSignals: (signals) => set({ signals }),
@@ -54,13 +54,13 @@ export const useStore = create<AppState>((set) => ({
     ui: { ...state.ui, scannedCount: state.ui.scannedCount + count }
   })),
 
-  setActiveCategory: (activeCategory) => set((state) => ({
-    ui: { ...state.ui, activeCategory }
-  })),
-
   toggleSidebar: (sidebarOpen) => set((state) => ({
     ui: { ...state.ui, sidebarOpen }
   })),
 
-  setUserProfile: (userProfile) => set({ userProfile })
+  setUserProfile: (userProfile) => set({ userProfile }),
+
+  setView: (view) => set((state) => ({
+    ui: { ...state.ui, view }
+  }))
 }));

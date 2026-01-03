@@ -27,64 +27,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     });
     return true; // Async response
   }
-
-  if (message.type === 'EXTRACT_INTERESTS') {
-    extractInterests(message.data).then(result => {
-      console.log('Interests extracted:', result);
-      sendResponse({ success: true, interests: result });
-    });
-    return true; // Async response
-  }
 });
 
 const API_BASE = 'http://localhost:3001';
-
-async function extractInterests(likes: Tweet[]) {
-  try {
-    const response = await fetch(`${API_BASE}/api/extract-interests`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ likes })
-    });
-
-    if (!response.ok) throw new Error('API Error');
-    
-    const result = await response.json();
-    
-    // Update user profile with new interests
-    if (result.interests) {
-       await updateUserInterests(result.interests);
-    }
-    
-    return result;
-  } catch (error) {
-    console.error('Interest extraction failed:', error);
-    return null;
-  }
-}
-
-async function updateUserInterests(newInterests: any[]) {
-  const profile: any = await getUserProfile();
-  
-  // Simple merge strategy: Add new interests if they don't exist
-  // const currentLabels = new Set(profile.interests.map((i: any) => i.label));
-  
-  newInterests.forEach(interest => {
-    // Assuming backend returns { categoryId, keywords, ... }
-    // We map keywords to interests or categories
-    // For simplicity, let's just add the keywords as custom keywords or new interest labels
-    if (interest.keywords) {
-        interest.keywords.forEach((k: string) => {
-            if (!profile.customKeywords.includes(k)) {
-                profile.customKeywords.push(k);
-            }
-        });
-    }
-  });
-
-  await chrome.storage.sync.set({ userProfile: profile });
-  console.log('User profile updated with new interests');
-}
 
 async function analyzeTweets(tweets: Tweet[]): Promise<Signal[]> {
   try {
