@@ -75,6 +75,15 @@ class SignalAgent:
             # 提取响应内容
             content = message.content[0].text
 
+            # 记录原始响应用于调试
+            print(f"API 响应长度: {len(content)} 字符")
+            print(f"API 响应前 200 字符: {content[:200]}")
+
+            # 检查响应是否为空
+            if not content or content.strip() == "":
+                print("警告: API 返回空响应")
+                return {"signals": []}
+
             # 如果 Claude 将 JSON 包装在 markdown 代码块中，需要提取出来
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0].strip()
@@ -82,11 +91,20 @@ class SignalAgent:
                 content = content.split("```")[1].split("```")[0].strip()
 
             # 解析 JSON 并返回
-            return json.loads(content)
+            try:
+                result = json.loads(content)
+                print(f"成功解析 JSON，包含 {len(result.get('signals', []))} 个信号")
+                return result
+            except json.JSONDecodeError as je:
+                print(f"JSON 解析失败: {je}")
+                print(f"尝试解析的内容:\n{content}")
+                return {"signals": []}
 
         except Exception as e:
             # 发生错误时返回空信号列表
-            print(f"分析推文时出错: {e}")
+            print(f"分析推文时出错: {type(e).__name__}: {e}")
+            import traceback
+            print(f"详细错误信息:\n{traceback.format_exc()}")
             return {"signals": []}
 
     def _construct_analysis_prompt(self, tweets: List[Dict], user_profile: Dict) -> str:
@@ -227,14 +245,37 @@ Likes 数据:
 
             # 提取并解析响应
             content = message.content[0].text
+
+            # 记录原始响应用于调试
+            print(f"兴趣分析 API 响应长度: {len(content)} 字符")
+            print(f"兴趣分析 API 响应前 200 字符: {content[:200]}")
+
+            # 检查响应是否为空
+            if not content or content.strip() == "":
+                print("警告: 兴趣分析 API 返回空响应")
+                return {"interests": [], "recommendedKeywords": []}
+
+            # 提取 JSON（如果有代码块包装）
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0].strip()
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0].strip()
 
-            return json.loads(content)
+            # 尝试解析 JSON
+            try:
+                result = json.loads(content)
+                interests_count = len(result.get('interests', []))
+                keywords_count = len(result.get('recommendedKeywords', []))
+                print(f"成功解析兴趣分析 JSON: {interests_count} 个兴趣, {keywords_count} 个关键词")
+                return result
+            except json.JSONDecodeError as je:
+                print(f"兴趣分析 JSON 解析失败: {je}")
+                print(f"尝试解析的内容:\n{content}")
+                return {"interests": [], "recommendedKeywords": []}
 
         except Exception as e:
             # 发生错误时返回空结果
-            print(f"提取兴趣时出错: {e}")
+            print(f"提取兴趣时出错: {type(e).__name__}: {e}")
+            import traceback
+            print(f"详细错误信息:\n{traceback.format_exc()}")
             return {"interests": [], "recommendedKeywords": []}
