@@ -92,9 +92,6 @@ export class SignalIndicatorManager {
         <div class="tsf-card-details">
           <div class="tsf-reasons">${reasons}</div>
           <div class="tsf-summary">${summary}</div>
-          <div class="tsf-card-footer">
-            <span class="tsf-signal-meta">匹配度 ${signal.score}%</span>
-          </div>
         </div>
       </div>
     `;

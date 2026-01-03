@@ -115,6 +115,8 @@ class TweetCapture {
   private scrollInterval: NodeJS.Timeout | null = null; // 滚动定时器
   private scrollAttempts = 0; // 滚动尝试次数
   private maxScrollAttempts = 50; // 最大滚动次数
+  private hasSentLikesForAnalysis: boolean = false; // 是否已发送 likes 用于分析
+  private isCollectingForAnalysis: boolean = false; // 是否正在收集用于分析
 
   constructor() {
     this.start();
@@ -227,6 +229,11 @@ class TweetCapture {
     // 检查是否在 likes 页面
     const isLikesPage = window.location.pathname.endsWith('/likes');
 
+    // 如果已经发送过分析数据，不再收集 likes
+    if (isLikesPage && this.hasSentLikesForAnalysis) {
+      return;
+    }
+
     mutations.forEach(mutation => {
       mutation.addedNodes.forEach(node => {
         if (node instanceof HTMLElement && this.isTweetElement(node)) {
@@ -239,7 +246,7 @@ class TweetCapture {
              const tweetData = this.extractTweetData(tweetNode as HTMLElement);
              if (tweetData && tweetData.tweetId && !this.capturedTweets.has(tweetData.tweetId)) {
                // 根据页面类型使用不同的队列
-               if (isLikesPage) {
+               if (isLikesPage && this.isCollectingForAnalysis) {
                  this.likesQueue.push(tweetData);
                  this.collectedLikesCount++;
                  console.log(`TSF: Captured like ${this.collectedLikesCount}/100:`, tweetData.tweetId);
@@ -252,7 +259,7 @@ class TweetCapture {
                      total: this.LIKES_BATCH_SIZE
                    }
                  }).catch(() => {}); // 忽略错误
-               } else {
+               } else if (!isLikesPage) {
                  this.batchQueue.push(tweetData);
                }
                this.capturedTweets.add(tweetData.tweetId);
@@ -268,7 +275,7 @@ class TweetCapture {
                  const tweetData = this.extractTweetData(tweetNode as HTMLElement);
                  if (tweetData && tweetData.tweetId && !this.capturedTweets.has(tweetData.tweetId)) {
                     // 根据页面类型使用不同的队列
-                    if (isLikesPage) {
+                    if (isLikesPage && this.isCollectingForAnalysis) {
                       this.likesQueue.push(tweetData);
                       this.collectedLikesCount++;
                       console.log(`TSF: Captured like ${this.collectedLikesCount}/100:`, tweetData.tweetId);
@@ -281,7 +288,7 @@ class TweetCapture {
                           total: this.LIKES_BATCH_SIZE
                         }
                       }).catch(() => {}); // 忽略错误
-                    } else {
+                    } else if (!isLikesPage) {
                       this.batchQueue.push(tweetData);
                     }
                     this.capturedTweets.add(tweetData.tweetId);
@@ -292,11 +299,11 @@ class TweetCapture {
     });
 
     // 根据页面类型检查是否需要发送批量
-    if (isLikesPage) {
-      if (this.likesQueue.length >= this.LIKES_BATCH_SIZE) {
+    if (isLikesPage && this.isCollectingForAnalysis) {
+      if (this.likesQueue.length >= this.LIKES_BATCH_SIZE && !this.hasSentLikesForAnalysis) {
         this.sendLikesBatch();
       }
-    } else {
+    } else if (!isLikesPage) {
       if (this.batchQueue.length >= this.BATCH_SIZE) {
         this.sendBatch();
       }
@@ -371,9 +378,22 @@ class TweetCapture {
    * 发送 Likes 批量数据（用于兴趣分析）
    */
   sendLikesBatch() {
+    // 防止重复发送
+    if (this.hasSentLikesForAnalysis) {
+      console.log('TSF: Already sent likes for analysis, skipping');
+      return;
+    }
+
     const batch = this.likesQueue.splice(0, this.LIKES_BATCH_SIZE);
 
     console.log(`TSF: Sending ${batch.length} likes for interest analysis`);
+
+    // 标记为已发送
+    this.hasSentLikesForAnalysis = true;
+    this.isCollectingForAnalysis = false;
+
+    // 停止自动滚动
+    this.stopAutoScroll();
 
     // 通知收集完成
     chrome.runtime.sendMessage({
@@ -385,8 +405,7 @@ class TweetCapture {
       data: batch
     });
 
-    // 重置计数
-    this.collectedLikesCount = 0;
+    console.log('TSF: Likes data sent, collection complete');
   }
 
   /**
@@ -395,6 +414,11 @@ class TweetCapture {
    */
   collectExistingTweets() {
     const isLikesPage = window.location.pathname.endsWith('/likes');
+
+    // 如果已经发送过分析数据，跳过
+    if (isLikesPage && this.hasSentLikesForAnalysis) {
+      return;
+    }
 
     // 查找所有已存在的推文
     const tweetElements = document.querySelectorAll('[data-testid="tweet"]');
@@ -410,11 +434,11 @@ class TweetCapture {
       const tweetData = this.extractTweetData(element);
       if (tweetData && tweetData.tweetId && !this.capturedTweets.has(tweetData.tweetId)) {
         // 根据页面类型使用不同的队列
-        if (isLikesPage) {
+        if (isLikesPage && this.isCollectingForAnalysis) {
           this.likesQueue.push(tweetData);
           this.collectedLikesCount++;
           console.log(`TSF: Collected existing like ${this.collectedLikesCount}/100:`, tweetData.tweetId);
-        } else {
+        } else if (!isLikesPage) {
           this.batchQueue.push(tweetData);
         }
         this.capturedTweets.add(tweetData.tweetId);
@@ -422,7 +446,7 @@ class TweetCapture {
     });
 
     // 如果收集到足够的数据，立即发送
-    if (isLikesPage && this.likesQueue.length >= this.LIKES_BATCH_SIZE) {
+    if (isLikesPage && this.isCollectingForAnalysis && this.likesQueue.length >= this.LIKES_BATCH_SIZE && !this.hasSentLikesForAnalysis) {
       this.sendLikesBatch();
     } else if (!isLikesPage && this.batchQueue.length >= this.BATCH_SIZE) {
       this.sendBatch();
@@ -482,6 +506,12 @@ class TweetCapture {
       return;
     }
 
+    // 如果已经发送过数据，不再开始
+    if (this.hasSentLikesForAnalysis) {
+      console.log('TSF: Already sent likes for analysis, not starting scroll');
+      return;
+    }
+
     const isLikesPage = window.location.pathname.endsWith('/likes');
     if (!isLikesPage) {
       console.log('TSF: Not on likes page, skipping auto-scroll');
@@ -489,11 +519,19 @@ class TweetCapture {
     }
 
     this.isAutoScrolling = true;
+    this.isCollectingForAnalysis = true;
     this.scrollAttempts = 0;
     console.log('TSF: Starting auto-scroll to collect likes');
 
     // 先收集已存在的推文
     this.collectExistingTweets();
+
+    // 检查是否已经收集足够
+    if (this.likesQueue.length >= this.LIKES_BATCH_SIZE) {
+      console.log('TSF: Already have enough likes, sending immediately');
+      this.sendLikesBatch();
+      return;
+    }
 
     // 开始滚动
     this.scrollInterval = setInterval(() => {
@@ -512,8 +550,9 @@ class TweetCapture {
     this.isAutoScrolling = false;
     console.log('TSF: Stopped auto-scroll');
 
-    // 检查是否有足够的数据需要发送
-    if (this.likesQueue.length > 0) {
+    // 如果有数据且还没发送，发送数据
+    if (this.likesQueue.length > 0 && !this.hasSentLikesForAnalysis && this.isCollectingForAnalysis) {
+      console.log('TSF: Sending collected likes before stopping');
       this.sendLikesBatch();
     }
   }
@@ -522,6 +561,13 @@ class TweetCapture {
    * 执行滚动操作
    */
   performScroll() {
+    // 如果已经发送过数据，停止滚动
+    if (this.hasSentLikesForAnalysis) {
+      console.log('TSF: Already sent likes, stopping scroll');
+      this.stopAutoScroll();
+      return;
+    }
+
     // 检查是否已收集足够的数据
     if (this.collectedLikesCount >= this.LIKES_BATCH_SIZE) {
       console.log(`TSF: Collected ${this.collectedLikesCount} likes, stopping scroll`);
@@ -533,11 +579,6 @@ class TweetCapture {
     if (this.scrollAttempts >= this.maxScrollAttempts) {
       console.log(`TSF: Max scroll attempts reached, stopping scroll`);
       this.stopAutoScroll();
-
-      // 即使没有达到目标数量，也发送已收集的数据
-      if (this.likesQueue.length > 0) {
-        this.sendLikesBatch();
-      }
       return;
     }
 
@@ -562,10 +603,6 @@ class TweetCapture {
       if (newScrollHeight === scrollHeight && currentScroll + windowHeight >= scrollHeight - 100) {
         console.log('TSF: Reached bottom of page, stopping scroll');
         this.stopAutoScroll();
-
-        if (this.likesQueue.length > 0) {
-          this.sendLikesBatch();
-        }
       }
     }, 1000);
   }
