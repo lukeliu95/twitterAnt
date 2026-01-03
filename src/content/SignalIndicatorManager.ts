@@ -11,10 +11,10 @@ export class SignalIndicatorManager {
   addSignal(signal: Signal) {
     this.signals.set(signal.tweetId, signal);
 
-    // 如果推文在当前页面上，立即添加标记
+    // 如果推文在当前页面上，立即添加卡片
     const tweetElement = this.findTweetElement(signal.tweetId);
     if (tweetElement) {
-      this.addIndicator(tweetElement, signal);
+      this.addSignalCard(tweetElement, signal);
     }
   }
 
@@ -34,45 +34,31 @@ export class SignalIndicatorManager {
   }
 
   /**
-   * 在推文上添加指示器
+   * 在推文上直接添加信号卡片
    */
-  private addIndicator(tweetElement: HTMLElement, signal: Signal) {
-    // 检查是否已经添加过指示器
-    if (tweetElement.querySelector('.tsf-indicator')) {
+  private addSignalCard(tweetElement: HTMLElement, signal: Signal) {
+    // 检查是否已经添加过卡片
+    if (tweetElement.querySelector('.tsf-signal-card-wrapper')) {
       return;
     }
 
-    // 找到行动栏 (Twitter 使用 role="group" 的元素)
-    const actionBar = tweetElement.querySelector('[role="group"]');
-    if (!actionBar) {
-      console.warn('TSF: Action bar not found for tweet', signal.tweetId);
-      return;
-    }
+    // 创建卡片包装器
+    const cardWrapper = document.createElement('div');
+    cardWrapper.className = 'tsf-signal-card-wrapper';
+    cardWrapper.setAttribute('data-tsf-tweet-id', signal.tweetId);
+    cardWrapper.setAttribute('data-tsf-score', signal.score.toString());
 
-    // 创建指示器容器
-    const indicatorContainer = document.createElement('div');
-    indicatorContainer.className = 'tsf-indicator-container';
+    // 创建完整的信号卡片
+    const card = this.createSignalCard(signal);
+    cardWrapper.appendChild(card);
 
-    // 创建指示器元素
-    const indicator = document.createElement('div');
-    indicator.className = `tsf-indicator tsf-indicator-${this.getIntensityClass(signal.score)}`;
-    indicator.setAttribute('data-tsf-tweet-id', signal.tweetId);
-    indicator.setAttribute('data-tsf-score', signal.score.toString());
+    // 插入卡片到推文中
+    this.insertCard(tweetElement, cardWrapper);
 
-    // 创建图标和分数
-    indicator.innerHTML = this.getIndicatorHTML(signal);
+    console.log('TSF: Signal card added for tweet', signal.tweetId);
 
-    // 添加点击事件
-    indicator.addEventListener('click', (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      this.toggleAnalysisCard(tweetElement, signal);
-    });
-
-    indicatorContainer.appendChild(indicator);
-    actionBar.appendChild(indicatorContainer);
-
-    console.log('TSF: Indicator added for tweet', signal.tweetId);
+    // 标记为已读
+    this.markAsRead(signal.tweetId);
   }
 
   /**
@@ -83,94 +69,91 @@ export class SignalIndicatorManager {
   }
 
   /**
-   * 生成指示器HTML
+   * 创建信号卡片
    */
-  private getIndicatorHTML(signal: Signal): string {
-    const score = signal.score;
-    return `📶 <span class="tsf-score">${score}</span>`;
-  }
-
-  /**
-   * 展开/收起分析卡片
-   */
-  private toggleAnalysisCard(tweetElement: HTMLElement, signal: Signal) {
-    const tweetId = signal.tweetId;
-    const existingCard = tweetElement.querySelector('.tsf-analysis-card');
-
-    if (existingCard) {
-      // 收起卡片
-      existingCard.classList.add('tsf-card-closing');
-      setTimeout(() => {
-        existingCard.remove();
-      }, 300);
-      this.expandedCards.delete(tweetId);
-      return;
-    }
-
-    // 创建卡片
-    const card = this.createAnalysisCard(signal);
-    this.insertCard(tweetElement, card);
-    this.expandedCards.add(tweetId);
-
-    // 标记为已读
-    this.markAsRead(tweetId);
-  }
-
-  /**
-   * 创建分析卡片
-   */
-  private createAnalysisCard(signal: Signal): HTMLElement {
+  private createSignalCard(signal: Signal): HTMLElement {
     const card = document.createElement('div');
-    card.className = 'tsf-analysis-card';
+    card.className = `tsf-signal-card tsf-signal-${this.getIntensityClass(signal.score)}`;
     card.setAttribute('data-tsf-signal-id', signal.signalId);
 
+    // 创建卡片内容
+    const scoreBadge = this.getScoreBadge(signal.score);
+    const reasons = this.getReasonsHTML(signal.matchReasons);
+    const summary = signal.aiSummary || '此内容可能与你关注的话题相关';
+
     card.innerHTML = `
-      <div class="tsf-card-header">
-        <span class="tsf-title">趋势信号 (${signal.score}分)</span>
-        <button class="tsf-close-btn" aria-label="关闭">&times;</button>
+      <div class="tsf-card-content">
+        <div class="tsf-card-top">
+          ${scoreBadge}
+          <button class="tsf-toggle-btn" aria-label="展开/收起" title="展开详情">
+            <span class="tsf-toggle-icon">▼</span>
+          </button>
+        </div>
+        <div class="tsf-card-details">
+          <div class="tsf-reasons">${reasons}</div>
+          <div class="tsf-summary">${summary}</div>
+          <div class="tsf-card-footer">
+            <span class="tsf-signal-meta">匹配度 ${signal.score}%</span>
+          </div>
+        </div>
       </div>
-      <div class="tsf-reasons">
-        ${signal.matchReasons.map(r => `
-          <span class="tsf-reason-tag" title="${r.explanation || r.value}">
-            ${this.getReasonIcon(r.type)} ${r.value}
-          </span>
-        `).join('')}
-      </div>
-      <div class="tsf-summary">${signal.aiSummary}</div>
     `;
 
-    // 添加关闭按钮事件
-    const closeBtn = card.querySelector('.tsf-close-btn');
-    if (closeBtn) {
-      closeBtn.addEventListener('click', (e) => {
+    // 添加展开/收起功能
+    const toggleBtn = card.querySelector('.tsf-toggle-btn');
+    const details = card.querySelector('.tsf-card-details');
+    const toggleIcon = card.querySelector('.tsf-toggle-icon');
+
+    if (toggleBtn && details && toggleIcon) {
+      toggleBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        card.classList.add('tsf-card-closing');
-        setTimeout(() => {
-          card.remove();
-        }, 300);
+        const isExpanded = card.classList.toggle('tsf-expanded');
+        if (isExpanded) {
+          toggleIcon.textContent = '▲';
+        } else {
+          toggleIcon.textContent = '▼';
+        }
       });
+    }
+
+    // 默认展开状态
+    card.classList.add('tsf-expanded');
+    const icon = card.querySelector('.tsf-toggle-icon');
+    if (icon) {
+      icon.textContent = '▲';
     }
 
     return card;
   }
 
   /**
-   * 将卡片插入到推文中
+   * 获取分数徽章
    */
-  private insertCard(tweetElement: HTMLElement, card: HTMLElement) {
-    // 尝试找到推文文本元素
-    const tweetText = tweetElement.querySelector('[data-testid="tweetText"]');
+  private getScoreBadge(score: number): string {
+    const intensityClass = this.getIntensityClass(score);
+    const icon = score >= 85 ? '🔥' : '📊';
+    return `
+      <div class="tsf-score-badge tsf-score-${intensityClass}">
+        <span class="tsf-score-icon">${icon}</span>
+        <span class="tsf-score-value">${score}</span>
+        <span class="tsf-score-label">趋势信号</span>
+      </div>
+    `;
+  }
 
-    if (tweetText && tweetText.parentElement) {
-      // 插入到推文文本之后
-      tweetText.parentElement.insertBefore(card, tweetText.nextSibling);
-    } else {
-      // 备选方案：插入到推文内容区域的末尾
-      const tweetContent = tweetElement.querySelector('[data-testid="tweet"]');
-      if (tweetContent) {
-        tweetContent.appendChild(card);
-      }
+  /**
+   * 获取匹配原因 HTML
+   */
+  private getReasonsHTML(matchReasons: any[]): string {
+    if (!matchReasons || matchReasons.length === 0) {
+      return '<span class="tsf-no-reasons">基于你的兴趣偏好</span>';
     }
+
+    return matchReasons.map(r => `
+      <span class="tsf-reason-tag" title="${r.explanation || r.value}">
+        ${this.getReasonIcon(r.type)} ${r.value}
+      </span>
+    `).join('');
   }
 
   /**
@@ -179,11 +162,32 @@ export class SignalIndicatorManager {
   private getReasonIcon(type: string): string {
     const icons: Record<string, string> = {
       keyword: '🔑',
-      engagement: '🔥',
+      engagement: '💫',
       timing: '⏱️',
-      related_account: '👥'
+      related_account: '👤',
+      interest: '💡',
+      topic: '📌'
     };
     return icons[type] || '•';
+  }
+
+  /**
+   * 将卡片插入到推文中
+   */
+  private insertCard(tweetElement: HTMLElement, cardWrapper: HTMLElement) {
+    // 尝试找到推文文本元素
+    const tweetText = tweetElement.querySelector('[data-testid="tweetText"]');
+
+    if (tweetText && tweetText.parentElement) {
+      // 插入到推文文本之后
+      tweetText.parentElement.insertBefore(cardWrapper, tweetText.nextSibling);
+    } else {
+      // 备选方案：插入到推文内容区域的末尾
+      const tweetContent = tweetElement.querySelector('[data-testid="tweet"]');
+      if (tweetContent) {
+        tweetContent.appendChild(cardWrapper);
+      }
+    }
   }
 
   /**
@@ -204,14 +208,12 @@ export class SignalIndicatorManager {
   }
 
   /**
-   * 移除推文上的指示器
+   * 移除推文上的信号
    */
   removeIndicator(tweetId: string) {
     const tweetElement = this.findTweetElement(tweetId);
     if (tweetElement) {
-      const indicator = tweetElement.querySelector('.tsf-indicator-container');
-      const card = tweetElement.querySelector('.tsf-analysis-card');
-      if (indicator) indicator.remove();
+      const card = tweetElement.querySelector('.tsf-signal-card-wrapper');
       if (card) card.remove();
     }
   }
