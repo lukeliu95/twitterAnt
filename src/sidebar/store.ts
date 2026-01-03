@@ -5,7 +5,7 @@ interface UIState {
   isScanning: boolean;
   scannedCount: number;
   sidebarOpen: boolean;
-  view: 'list' | 'settings';
+  view: 'list' | 'settings' | 'focus';
   isAnalyzingInterests: boolean;  // 是否正在分析兴趣
 }
 
@@ -25,7 +25,7 @@ interface AppState {
   incrementScannedCount: (count: number) => void;
   toggleSidebar: (isOpen: boolean) => void;
   setUserProfile: (profile: UserProfile) => void;
-  setView: (view: 'list' | 'settings') => void;
+  setView: (view: 'list' | 'settings' | 'focus') => void;
 
   // 兴趣相关操作
   setInterests: (interests: Interest[]) => void;

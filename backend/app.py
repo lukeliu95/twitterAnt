@@ -194,6 +194,48 @@ def feedback():
     })
 
 
+@app.route('/api/analyze-timeline', methods=['POST'])
+def analyze_timeline():
+    """
+    时间线快速分析 API 端点
+
+    专为首次引导设计，快速分析时间线推文并提取兴趣
+    """
+    # 获取请求数据
+    data = request.json
+    tweets = data.get('tweets', [])
+
+    print(f"[API] /api/analyze-timeline 收到请求: {len(tweets)} 条推文")
+
+    if not tweets:
+        return jsonify({
+            "interests": [],
+            "recommendedKeywords": [],
+            "analyzedCount": 0
+        })
+
+    try:
+        # 调用 AI 快速分析
+        print(f"[API] 开始快速分析时间线...")
+        result = agent.analyze_timeline_for_interests(tweets)
+
+        interests_count = len(result.get('interests', []))
+        keywords_count = len(result.get('recommendedKeywords', []))
+        print(f"[API] 快速分析完成: {interests_count} 个兴趣, {keywords_count} 个关键词")
+
+        return jsonify({
+            "interests": result.get('interests', []),
+            "recommendedKeywords": result.get('recommendedKeywords', []),
+            "analyzedCount": len(tweets)
+        })
+
+    except Exception as e:
+        import traceback
+        print(f"[API] 时间线分析错误: {type(e).__name__}: {e}")
+        print(f"[API] 详细错误:\n{traceback.format_exc()}")
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == '__main__':
     """
     启动 Flask 开发服务器

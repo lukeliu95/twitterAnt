@@ -1,8 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { SignalCard } from './components/SignalCard';
 import { SettingsView } from './components/SettingsView';
+import { OnboardingView } from './components/OnboardingView';
+import { FocusModeView } from './components/FocusModeView';
 import { useStore } from './store';
 import { DUMMY_SIGNALS } from './dummyData';
 
@@ -19,12 +21,15 @@ function App() {
     setAnalyzingInterests
   } = useStore();
 
+  const [hasOnboarded, setHasOnboarded] = useState(false);
+
   useEffect(() => {
     const isExtension = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local;
 
     if (isExtension) {
-      // Load from storage
-      chrome.storage.local.get(['signals'], (result) => {
+      // 检查是否已完成引导
+      chrome.storage.local.get(['tsfOnboarded', 'signals'], (result) => {
+        setHasOnboarded(result.tsfOnboarded || false);
         if (result.signals) {
           setSignals(result.signals);
         }
@@ -43,6 +48,14 @@ function App() {
           // 自动切换到设置页面显示分析进度
           setView('settings');
           setAnalyzingInterests(true);
+        } else if (message.type === 'SHOW_ONBOARDING') {
+          // 显示首次引导
+          setHasOnboarded(false);
+        } else if (message.type === 'SWITCH_SIDEBAR_VIEW') {
+          // 切换侧边栏视图
+          if (message.data.view) {
+            setView(message.data.view);
+          }
         }
       };
       chrome.runtime.onMessage.addListener(listener);
@@ -83,16 +96,68 @@ function App() {
     }, '*');
   };
 
-  // Input area logic removed
-  
+  // 首次引导完成
+  const handleOnboardingComplete = () => {
+    setHasOnboarded(true);
+    setView('list');
+  };
+
+  const handleOnboardingSkip = () => {
+    setHasOnboarded(true);
+    setView('list');
+  };
+
+  // 如果未完成引导，显示引导页面
+  if (!hasOnboarded) {
+    return (
+      <div className="flex flex-col h-screen bg-bg-primary text-text-primary overflow-hidden font-sans text-sm">
+        <div className="onboarding-container">
+          <Header onClose={handleClose} />
+          <OnboardingView
+            onComplete={handleOnboardingComplete}
+            onSkip={handleOnboardingSkip}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // 专注模式视图
+  if (ui.view === 'focus') {
+    return (
+      <div className="flex flex-col h-screen bg-bg-primary text-text-primary overflow-hidden font-sans text-sm">
+        <Header
+          onHomeClick={() => setView('list')}
+          onSettingsClick={() => setView('settings')}
+          onClose={handleClose}
+        />
+        <div className="flex-1 overflow-y-auto p-4">
+          <FocusModeView
+            onSettingsChange={(settings) => {
+              // 同步到 content script
+              chrome.runtime.sendMessage({
+                type: 'SET_FOCUS_MODE',
+                data: settings
+              });
+            }}
+          />
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // 设置视图
   if (ui.view === 'settings') {
     return <SettingsView onBack={() => setView('list')} />;
   }
 
+  // 主视图（信号列表）
   return (
     <div className="flex flex-col h-screen bg-bg-primary text-text-primary overflow-hidden font-sans text-sm">
-      <Header 
+      <Header
         onSettingsClick={() => setView('settings')}
+        onFocusModeClick={() => setView('focus')}
         onClose={handleClose}
       />
 
@@ -104,7 +169,7 @@ function App() {
           </div>
         ) : (
           signals.map(signal => (
-            <SignalCard 
+            <SignalCard
               key={signal.signalId}
               signal={signal}
               onFeedback={handleFeedback}

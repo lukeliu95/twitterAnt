@@ -1,6 +1,9 @@
 // Content Script
 import { Tweet } from '../types';
 import { SignalIndicatorManager } from './SignalIndicatorManager';
+import { FocusModeController } from './FocusModeController';
+import { TimelineCollector } from './TimelineCollector';
+import { TimelinePromptManager } from './TimelinePromptManager';
 
 // Sidebar Manager to handle iframe injection
 class SidebarManager {
@@ -25,7 +28,17 @@ class SidebarManager {
         this.toggle();
         sendResponse({ success: true }); // Respond to acknowledge receipt
       } else if (message.type === 'SHOW_SIDEBAR') {
+        // 显示侧边栏，可选指定视图
         this.show();
+        // 如果指定了视图，通知侧边栏切换视图
+        if (message.data && message.data.view) {
+          setTimeout(() => {
+            chrome.runtime.sendMessage({
+              type: 'SWITCH_SIDEBAR_VIEW',
+              data: { view: message.data.view }
+            }).catch(() => {});
+          }, 100);
+        }
         sendResponse({ success: true });
       } else if (message.type === 'SHOW_SETTINGS_FOR_ANALYSIS') {
         // 显示侧边栏用于查看分析进度
@@ -169,7 +182,58 @@ class TweetCapture {
       return true;
     });
 
-    // 检查当前是否在 likes 页面，如果是则开始自动滚动
+    // 监听时间线收集请求
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message.type === 'START_TIMELINE_COLLECTION') {
+        this.handleTimelineCollection(message.data);
+        sendResponse({ success: true });
+      }
+      return true;
+    });
+
+    // 检查是否在 likes 页面
+    this.checkLikesPageAndStartScroll();
+  }
+
+  /**
+   * 处理时间线收集请求
+   */
+  private handleTimelineCollection(data: { targetCount?: number }) {
+    const targetCount = data?.targetCount || 100;
+
+    // 创建时间线收集器
+    const collector = new TimelineCollector();
+
+    // 开始收集
+    collector.collectTimeline(targetCount).then((tweets) => {
+      console.log(`TSF: Timeline collection complete, collected ${tweets.length} tweets`);
+
+      // 保存收集的推文
+      chrome.storage.local.set({ collectedTimeline: tweets }, () => {
+        // 通知收集完成
+        chrome.runtime.sendMessage({
+          type: 'TIMELINE_COLLECTION_COMPLETE'
+        }).catch(() => {});
+
+        // 通知侧边栏可以开始分析
+        chrome.runtime.sendMessage({
+          type: 'TIMELINE_READY_FOR_ANALYSIS',
+          data: { count: tweets.length }
+        }).catch(() => {});
+      });
+    }).catch((error) => {
+      console.error('TSF: Timeline collection failed:', error);
+
+      // 通知错误
+      chrome.runtime.sendMessage({
+        type: 'TIMELINE_COLLECTION_ERROR',
+        data: { error: String(error) }
+      }).catch(() => {});
+    });
+  }
+
+  // 检查当前是否在 likes 页面，如果是则开始自动滚动
+  checkLikesPageAndStartScroll() {
     if (window.location.pathname.endsWith('/likes')) {
       setTimeout(() => {
         this.startAutoScroll();
@@ -395,6 +459,9 @@ class TweetCapture {
     // 停止自动滚动
     this.stopAutoScroll();
 
+    // 保存完成标记到 storage
+    chrome.storage.local.set({ likesCollected: true });
+
     // 通知收集完成
     chrome.runtime.sendMessage({
       type: 'LIKES_COLLECTION_COMPLETE'
@@ -610,19 +677,31 @@ class TweetCapture {
 
 // Initialize
 const indicatorManager = new SignalIndicatorManager();
+const focusModeController = new FocusModeController();
 new TweetCapture();
 new SidebarManager();
+new TimelinePromptManager();
+
+// 将 focusModeController 暴露到全局，供其他模块访问
+(window as any).focusModeController = focusModeController;
+
+// 初始化专注模式控制器
+focusModeController.init();
 
 // Listen for signals from background script
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'NEW_SIGNAL') {
     indicatorManager.addSignal(message.data);
+    // 应用专注模式到新添加信号的推文
+    focusModeController.applyToTweets();
     sendResponse({ success: true });
   } else if (message.type === 'REMOVE_SIGNAL') {
     indicatorManager.removeIndicator(message.data.tweetId);
+    focusModeController.applyToTweets();
     sendResponse({ success: true });
   } else if (message.type === 'CLEAR_ALL_SIGNALS') {
     indicatorManager.clear();
+    focusModeController.applyToTweets();
     sendResponse({ success: true });
   }
   return true; // Keep message channel open for async response

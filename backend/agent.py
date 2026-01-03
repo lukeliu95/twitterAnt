@@ -279,3 +279,89 @@ Likes 数据:
             import traceback
             print(f"详细错误信息:\n{traceback.format_exc()}")
             return {"interests": [], "recommendedKeywords": []}
+
+    def analyze_timeline_for_interests(self, timeline: List[Dict]) -> Dict:
+        """
+        快速分析时间线推文，提取兴趣偏好
+        专为首次引导设计，比 extract_interests 更快
+
+        参数:
+            timeline: 时间线推文列表
+
+        返回:
+            Dict: 包含兴趣分析结果的字典
+        """
+        # 简化推文数据
+        simplified_timeline = []
+        for t in timeline[:100]:  # 最多分析100条
+            simplified_timeline.append({
+                "content": t.get("content", "")[:500],  # 限制长度
+                "author": t.get("authorName", "")
+            })
+
+        # 构建快速分析提示词
+        prompt = f"""
+任务:
+快速分析用户时间线，识别主要的兴趣方向。
+
+时间线数据 ({len(simplified_timeline)} 条):
+{json.dumps(simplified_timeline, ensure_ascii=False, indent=2)}
+
+输出格式 (JSON):
+{{
+  "interests": [
+    {{
+      "categoryId": "tech_ai",
+      "label": "AI 技术",
+      "confidence": 0.85,
+      "keywords": ["Claude", "GPT", "LLM"],
+      "enabled": true
+    }}
+  ],
+  "recommendedKeywords": ["Agent", "RAG", "Fine-tuning"]
+}}
+
+要求:
+- 快速识别 3-5 个主要兴趣方向
+- confidence 范围 0.5-1.0
+- 每个兴趣提供 3-5 个关键词
+- 推荐添加 5-8 个关键词
+"""
+
+        try:
+            # 调用 Claude API
+            message = self.client.messages.create(
+                model=self.model,
+                max_tokens=2048,
+                temperature=0.3,
+                system="You are a quick content analysis expert. Identify main topics efficiently.",
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            # 提取并解析响应
+            content = message.content[0].text
+
+            print(f"时间线分析响应长度: {len(content)} 字符")
+
+            # 提取 JSON
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+
+            try:
+                result = json.loads(content)
+                interests_count = len(result.get('interests', []))
+                keywords_count = len(result.get('recommendedKeywords', []))
+                print(f"成功分析时间线: {interests_count} 个兴趣, {keywords_count} 个关键词")
+                return result
+            except json.JSONDecodeError as je:
+                print(f"JSON 解析失败: {je}")
+                print(f"尝试解析的内容:\n{content}")
+                return {"interests": [], "recommendedKeywords": []}
+
+        except Exception as e:
+            print(f"时间线分析出错: {type(e).__name__}: {e}")
+            import traceback
+            print(f"详细错误:\n{traceback.format_exc()}")
+            return {"interests": [], "recommendedKeywords": []}
