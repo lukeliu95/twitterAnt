@@ -75,6 +75,7 @@ export class SignalIndicatorManager {
     const card = document.createElement('div');
     card.className = `tsf-signal-card tsf-signal-${this.getIntensityClass(signal.score)}`;
     card.setAttribute('data-tsf-signal-id', signal.signalId);
+    card.setAttribute('data-tsf-score', signal.score.toString());
 
     // 创建卡片内容
     const scoreBadge = this.getScoreBadge(signal.score);
@@ -87,6 +88,9 @@ export class SignalIndicatorManager {
           ${scoreBadge}
           <button class="tsf-toggle-btn" aria-label="展开/收起" title="展开详情">
             <span class="tsf-toggle-icon">▼</span>
+          </button>
+          <button class="tsf-whitelist-btn" aria-label="添加到白名单" title="双击星标添加到白名单">
+            <span class="tsf-star-icon">⭐</span>
           </button>
         </div>
         <div class="tsf-card-details">
@@ -113,6 +117,59 @@ export class SignalIndicatorManager {
       });
     }
 
+    // 添加白名单功能（双击星标）
+    const whitelistBtn = card.querySelector('.tsf-whitelist-btn');
+    if (whitelistBtn) {
+      // 单击提示
+      whitelistBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // 显示提示
+        const tooltip = document.createElement('div');
+        tooltip.className = 'tsf-whitelist-tooltip';
+        tooltip.textContent = '双击添加到白名单';
+        tooltip.style.cssText = `
+          position: absolute;
+          top: -30px;
+          right: 0;
+          background: rgba(0, 0, 0, 0.8);
+          color: white;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 11px;
+          white-space: nowrap;
+          z-index: 1000;
+        `;
+        whitelistBtn.appendChild(tooltip);
+        setTimeout(() => tooltip.remove(), 1500);
+      });
+
+      // 双击添加到白名单
+      whitelistBtn.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        this.addToWhitelist(signal.tweetId);
+
+        // 显示成功提示
+        const successTooltip = document.createElement('div');
+        successTooltip.className = 'tsf-whitelist-success';
+        successTooltip.textContent = '✓ 已添加到白名单';
+        successTooltip.style.cssText = `
+          position: absolute;
+          top: -30px;
+          right: 0;
+          background: linear-gradient(135deg, #f7dc6f 0%, #f0d965 100%);
+          color: #0f1419;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 600;
+          white-space: nowrap;
+          z-index: 1000;
+        `;
+        whitelistBtn.appendChild(successTooltip);
+        setTimeout(() => successTooltip.remove(), 2000);
+      });
+    }
+
     // 默认展开状态
     card.classList.add('tsf-expanded');
     const icon = card.querySelector('.tsf-toggle-icon');
@@ -121,6 +178,27 @@ export class SignalIndicatorManager {
     }
 
     return card;
+  }
+
+  /**
+   * 添加到白名单
+   */
+  private addToWhitelist(tweetId: string) {
+    // 通过消息通知 FocusModeController
+    if (typeof window !== 'undefined' && (window as any).focusModeController) {
+      (window as any).focusModeController.addToWhitelist(tweetId);
+    }
+
+    // 保存到 storage
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.get(['tsfWhitelist'], (result) => {
+        const whitelist = new Set(result.tsfWhitelist || []);
+        whitelist.add(tweetId);
+        chrome.storage.local.set({
+          tsfWhitelist: Array.from(whitelist)
+        });
+      });
+    }
   }
 
   /**
