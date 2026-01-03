@@ -5,6 +5,7 @@
 **趋势信号 (TSF)** 是一个智能 Chrome 浏览器插件，专为 Twitter (X.com) 深度用户设计。它利用 Claude 的 AI 能力，自动在后台检测、筛选高价值推文，并通过非侵入式的信号卡片直接在信息流中呈现结构化洞察。
 
 ---
+![image](https://github.com/lukeliu95/twitterAnt/blob/main/Docs/screenshot-20260103-155311.png)
 
 ## 目录
 
