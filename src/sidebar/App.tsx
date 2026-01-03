@@ -7,13 +7,16 @@ import { useStore } from './store';
 import { DUMMY_SIGNALS } from './dummyData';
 
 function App() {
-  const { 
-    signals, 
-    ui, 
-    setSignals, 
-    setScanning, 
+  const {
+    signals,
+    ui,
+    setSignals,
+    setScanning,
     updateSignal,
-    setView
+    setView,
+    setInterests,
+    setRecommendedKeywords,
+    setAnalyzingInterests
   } = useStore();
 
   useEffect(() => {
@@ -31,10 +34,19 @@ function App() {
       const listener = (message: any) => {
         if (message.type === 'SIGNALS_UPDATED') {
           setSignals(message.data);
+        } else if (message.type === 'INTERESTS_UPDATED') {
+          // 更新兴趣数据
+          setInterests(message.data.interests);
+          setRecommendedKeywords(message.data.recommendedKeywords);
+          setAnalyzingInterests(false);
+        } else if (message.type === 'SHOW_SETTINGS_FOR_ANALYSIS') {
+          // 自动切换到设置页面显示分析进度
+          setView('settings');
+          setAnalyzingInterests(true);
         }
       };
       chrome.runtime.onMessage.addListener(listener);
-      
+
       return () => {
         chrome.runtime.onMessage.removeListener(listener);
       };

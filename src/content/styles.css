@@ -1,0 +1,342 @@
+/*
+ * Twitter Ant - Native Indicator Styles
+ * 非侵入式智能标记系统样式
+ */
+
+/* ========================================
+   趋势信号指示器容器
+   ======================================== */
+.tsf-indicator-container {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+}
+
+/* ========================================
+   趋势信号指示器基础样式
+   ======================================== */
+.tsf-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.tsf-score {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----------------------------------------
+   高匹配指示器 (score >= 85)
+   ---------------------------------------- */
+.tsf-indicator-high {
+  background: rgba(247, 220, 111, 0.15);
+  color: #0f1419;
+  border: 1px solid rgba(247, 220, 111, 0.5);
+}
+
+.tsf-indicator-high:hover {
+  background: rgba(247, 220, 111, 0.25);
+  transform: translateY(-1px);
+}
+
+/* ----------------------------------------
+   中等匹配指示器 (70-84)
+   ---------------------------------------- */
+.tsf-indicator-medium {
+  background: rgba(247, 220, 111, 0.08);
+  color: #0f1419;
+  border: 1px solid rgba(247, 220, 111, 0.3);
+}
+
+.tsf-indicator-medium:hover {
+  background: rgba(247, 220, 111, 0.15);
+  transform: translateY(-1px);
+}
+
+/* ========================================
+   分析卡片
+   ======================================== */
+.tsf-analysis-card {
+  margin: 12px 0;
+  padding: 16px;
+  background-color: rgba(247, 220, 111, 0.05);
+  border: 1px solid rgba(247, 220, 111, 0.3);
+  border-radius: 16px;
+  backdrop-filter: blur(8px);
+  animation: tsf-slideDown 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  max-width: 100%;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+  color: #0f1419; /* Twitter's primary text color (black-ish) */
+}
+
+.tsf-analysis-card:hover {
+  background-color: rgba(247, 220, 111, 0.08);
+  border-color: rgba(247, 220, 111, 0.4);
+}
+
+/* 卡片进入动画 */
+@keyframes tsf-slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 卡片关闭动画 */
+.tsf-card-closing {
+  animation: tsf-slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes tsf-slideUp {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+}
+
+/* ----------------------------------------
+   卡片头部
+   ---------------------------------------- */
+.tsf-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(247, 220, 111, 0.2);
+}
+
+.tsf-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: #0f1419;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tsf-title::before {
+  content: '📶';
+  font-size: 14px;
+}
+
+.tsf-close-btn {
+  background: none;
+  border: none;
+  color: rgba(247, 220, 111, 0.6);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.tsf-close-btn:hover {
+  background: rgba(247, 220, 111, 0.15);
+  color: #f7dc6f;
+}
+
+/* ----------------------------------------
+   匹配原因标签
+   ---------------------------------------- */
+.tsf-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tsf-reason-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 4px 10px;
+  background: rgba(15, 20, 25, 0.05);
+  border: 1px solid rgba(15, 20, 25, 0.1);
+  border-radius: 12px;
+  color: #0f1419;
+  cursor: help;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.tsf-reason-tag:hover {
+  background: rgba(15, 20, 25, 0.1);
+  border-color: rgba(15, 20, 25, 0.2);
+  transform: translateY(-1px);
+}
+
+/* ----------------------------------------
+   摘要内容
+   ---------------------------------------- */
+.tsf-summary {
+  font-size: 15px;
+  line-height: 1.5;
+  color: #0f1419;
+  margin-bottom: 4px;
+  font-family: inherit;
+}
+
+/* ======================================== 
+   深色模式适配 
+   ======================================== */
+
+@media (prefers-color-scheme: dark) {
+  .tsf-analysis-card {
+    background-color: rgba(247, 220, 111, 0.9); /* Solid light background in dark mode to support black text */
+    color: #000000;
+    border-color: #f7dc6f;
+  }
+
+  .tsf-icon, .tsf-title, .tsf-summary, .tsf-reason-tag {
+    color: #000000 !important;
+  }
+  
+  .tsf-reason-tag {
+    background: rgba(0, 0, 0, 0.05);
+    border-color: rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* ======================================== 
+   Twitter 特定样式覆盖 
+   ======================================== */
+
+/* 确保指示器在 Twitter 的深色主题中正常显示 */
+[data-testid="tweet"] .tsf-indicator-container {
+  /* 继承 Twitter 的主题 */
+}
+
+/* 防止 Twitter 的样式影响我们的卡片 */
+.tsf-analysis-card * {
+  box-sizing: border-box;
+}
+
+/* ======================================== 
+   可访问性 
+   ======================================== */
+
+/* 键盘导航 */
+.tsf-indicator:focus,
+.tsf-view-original:focus,
+.tsf-close-btn:focus {
+  outline: 2px solid #f7dc6f;
+  outline-offset: 2px;
+}
+
+/* 屏幕阅读器 */
+.tsf-indicator[aria-label] {
+  position: relative;
+}
+
+/* 减少动画（尊重用户偏好） */
+@media (prefers-reduced-motion: reduce) {
+  .tsf-indicator,
+  .tsf-analysis-card,
+  .tsf-icon,
+  .tsf-reason-tag {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* ======================================== 
+   实用工具类 
+   ======================================== */
+
+/* 隐藏元素 */
+.tsf-hidden {
+  display: none !important;
+}
+
+/* 不可见但保留布局空间 */
+.tsf-invisible {
+  visibility: hidden;
+}
+
+/* ======================================== 
+   响应式适配 
+   ======================================== */
+
+/* 小屏幕优化 */
+@media (max-width: 600px) {
+  .tsf-indicator {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .tsf-analysis-card {
+    padding: 12px;
+    margin: 12px 0;
+  }
+
+  .tsf-reasons {
+    gap: 6px;
+  }
+
+  .tsf-reason-tag {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+}
+
+/* ========================================
+   深色模式下的 Tooltip 适配
+   ======================================== */
+@media (prefers-color-scheme: dark) {
+  .tsf-tooltip {
+    background: linear-gradient(135deg,
+      rgba(247, 220, 111, 0.95) 0%,
+      rgba(249, 231, 159, 0.92) 100%);
+    border-color: #f7dc6f;
+    color: #000000;
+  }
+
+  .tsf-tooltip-section {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  .tsf-detail-section {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  .tsf-tooltip-header,
+  .tsf-tooltip-section strong,
+  .tsf-detail-section strong {
+    color: #000000;
+  }
+
+  .tsf-tooltip-section p,
+  .tsf-tooltip-section li,
+  .tsf-detail-section p,
+  .tsf-detail-section li {
+    color: #1a1a1a;
+  }
+
+  .tsf-tooltip-footer {
+    color: #4a5568;
+  }
+}

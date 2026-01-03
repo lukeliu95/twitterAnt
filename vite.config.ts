@@ -1,9 +1,25 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
+import { copyFileSync, mkdirSync, existsSync } from 'fs';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'copy-content-styles',
+      writeBundle() {
+        const srcPath = resolve(__dirname, 'src/content/styles.css');
+        const destDir = resolve(__dirname, 'dist');
+        const destPath = resolve(destDir, 'styles.css');
+
+        if (existsSync(srcPath)) {
+          copyFileSync(srcPath, destPath);
+          console.log('Copied content styles.css to dist/styles.css');
+        }
+      },
+    },
+  ],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),

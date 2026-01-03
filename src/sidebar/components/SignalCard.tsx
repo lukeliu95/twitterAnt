@@ -50,9 +50,9 @@ export const SignalCard: React.FC<SignalCardProps> = ({
         </div>
       </div>
 
-      {/* AI Summary */}
-      <div className="flex gap-2 bg-yellow-50 p-3 rounded-md border-l-2 border-accent-color mb-3">
-        <Sparkles size={16} className="text-accent-color flex-shrink-0 mt-0.5" />
+      {/* Summary */}
+      <div className="flex gap-2 bg-yellow-50/30 p-3 rounded-lg border border-yellow-200/50 mb-3">
+        <Sparkles size={14} className="text-accent-color flex-shrink-0 mt-1" />
         <p className="text-sm text-text-secondary leading-snug">{signal.aiSummary}</p>
       </div>
 

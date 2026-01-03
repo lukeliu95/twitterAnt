@@ -65,6 +65,9 @@ export interface Signal {
   // category: string; // Removed
   score: number;
   aiSummary: string;
+  detailedExplanation?: string;  // 详细解读，用于 hover 显示
+  whyItMatters?: string;  // 为什么值得关注
+  keyInsights?: string[];  // 关键洞察点
   matchReasons: MatchReason[];
   tweet: Tweet;
   userFeedback?: 'useful' | 'not_interested' | 'wrong';
