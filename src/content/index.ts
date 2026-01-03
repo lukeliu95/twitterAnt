@@ -171,10 +171,15 @@ class TweetCapture {
 
   sendBatch() {
     const batch = this.batchQueue.splice(0, this.BATCH_SIZE);
-    console.log('TSF: Sending batch', batch);
+    
+    // Determine context based on URL
+    const isLikesPage = window.location.pathname.endsWith('/likes');
+    const messageType = isLikesPage ? 'EXTRACT_INTERESTS' : 'ANALYZE_TWEETS';
+
+    console.log(`TSF: Sending batch (${messageType})`, batch.length);
     
     chrome.runtime.sendMessage({
-      type: 'ANALYZE_TWEETS',
+      type: messageType,
       data: batch
     });
   }
