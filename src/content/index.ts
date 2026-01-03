@@ -107,7 +107,7 @@ class TweetCapture {
   private observer: MutationObserver | null = null;
   private capturedTweets: Set<string> = new Set();
   private batchQueue: Partial<Tweet>[] = [];
-  private BATCH_SIZE = 5; // 普通时间线的批量大小
+  private BATCH_SIZE = 10; // 普通时间线的批量大小
   private LIKES_BATCH_SIZE = 100; // Likes 页面的批量大小
   private likesQueue: Partial<Tweet>[] = []; // Likes 专用队列
   private collectedLikesCount = 0; // 已收集的 likes 数量
