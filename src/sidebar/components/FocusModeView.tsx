@@ -19,10 +19,17 @@ export const FocusModeView: React.FC<FocusModeViewProps> = ({ onSettingsChange }
   const [collectionCount, setCollectionCount] = useState(100); // 收集条数
   const [autoMonitoring, setAutoMonitoring] = useState(false); // 自动监控
 
+  // 新增：信号统计
+  const [signalStats, setSignalStats] = useState({
+    total: 0,      // 总信号数
+    highValue: 0,  // 高价值信号数 (score >= 85)
+    mediumValue: 0 // 中价值信号数 (score 70-84)
+  });
+
   useEffect(() => {
     // 加载保存的设置
     if (typeof chrome !== 'undefined' && chrome.storage) {
-      chrome.storage.local.get(['tsfFocusSettings', 'tsfCollectionCount', 'tsfAutoMonitoring'], (result) => {
+      chrome.storage.local.get(['tsfFocusSettings', 'tsfCollectionCount', 'tsfAutoMonitoring', 'tsfSignalStats'], (result) => {
         if (result.tsfFocusSettings) {
           setSettings(result.tsfFocusSettings);
         }
@@ -32,6 +39,9 @@ export const FocusModeView: React.FC<FocusModeViewProps> = ({ onSettingsChange }
         if (result.tsfAutoMonitoring !== undefined) {
           setAutoMonitoring(result.tsfAutoMonitoring);
         }
+        if (result.tsfSignalStats) {
+          setSignalStats(result.tsfSignalStats);
+        }
       });
     }
 
@@ -39,6 +49,8 @@ export const FocusModeView: React.FC<FocusModeViewProps> = ({ onSettingsChange }
     const handleMessage = (message: any) => {
       if (message.type === 'FOCUS_MODE_UPDATED') {
         setBlurredCount(message.data.blurredCount || 0);
+      } else if (message.type === 'SIGNAL_STATS_UPDATED') {
+        setSignalStats(message.data);
       }
     };
 
@@ -188,6 +200,27 @@ export const FocusModeView: React.FC<FocusModeViewProps> = ({ onSettingsChange }
           <RotateCcw size={14} />
           全部恢复
         </button>
+      </div>
+
+      {/* 信号统计 */}
+      <div className="signal-stats-card">
+        <div className="stats-header">
+          <h4>信号统计</h4>
+        </div>
+        <div className="stats-grid">
+          <div className="stat-card">
+            <span className="stat-number">{signalStats.total}</span>
+            <span className="stat-label">发现信号</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-number stat-high">{signalStats.highValue}</span>
+            <span className="stat-label">高价值 (85+)</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-number stat-medium">{signalStats.mediumValue}</span>
+            <span className="stat-label">中价值 (70+)</span>
+          </div>
+        </div>
       </div>
 
       {/* 提示 */}
