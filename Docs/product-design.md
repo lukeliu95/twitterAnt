@@ -1,4 +1,4 @@
-# Twitter Ant - 产品设计方案
+# Trend Signal Free (TSF) - 产品设计方案
 
 ## 非侵入式智能标记系统
 
@@ -109,7 +109,7 @@
 对于**超高质量信号**（评分 >= 90），可以发送浏览器通知：
 
 ```
-🔔 Twitter Ant
+🔔 Trend Signal Free (TSF)
 
 发现一条你可能会喜欢的内容！
 

@@ -152,6 +152,18 @@ function App() {
     return <SettingsView onBack={() => setView('list')} />;
   }
 
+  const handleGoToHome = () => {
+    const isExtension = typeof chrome !== 'undefined' && chrome.tabs;
+    if (isExtension) {
+      // 发送消息给 background script 进行跳转和自动触发分析
+      chrome.runtime.sendMessage({
+        type: 'NAVIGATE_TO_HOME_AND_ANALYZE'
+      });
+    } else {
+      window.open('https://x.com/home', '_blank');
+    }
+  };
+
   // 主视图（信号列表）
   return (
     <div className="flex flex-col h-screen bg-bg-primary text-text-primary overflow-hidden font-sans text-sm">
@@ -163,9 +175,21 @@ function App() {
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {signals.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-text-tertiary">
-            <p>暂无信号</p>
-            <p className="text-xs">等待分析...</p>
+          <div className="flex flex-col items-center justify-center h-full text-center space-y-6 px-4">
+            <div className="space-y-2">
+              <p className="text-lg font-bold text-text-primary">暂无趋势信号</p>
+              <p className="text-text-tertiary">
+                请前往 Twitter 时间线主页，我们将为你分析前 100 条推文，发现隐藏的价值。
+              </p>
+            </div>
+            
+            <button 
+              onClick={handleGoToHome}
+              className="w-full py-3 px-4 bg-brand-primary text-white rounded-full font-bold hover:bg-brand-hover transition-colors flex items-center justify-center gap-2"
+            >
+              <span>🚀</span>
+              前往时间线开始分析
+            </button>
           </div>
         ) : (
           signals.map(signal => (

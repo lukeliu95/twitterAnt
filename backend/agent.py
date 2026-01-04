@@ -1,5 +1,5 @@
 """
-趋势信号 (Twitter Ant) - AI 信号分析代理
+# 趋势信号 (Trend Signal Free - TSF) - AI 信号分析代理
 
 这个模块负责使用 Claude AI 分析推文，识别高价值的趋势信号。
 """
@@ -54,51 +54,73 @@ class SignalAgent:
                 - keyInsights: 关键洞察点列表
                 - matchReasons: 匹配原因列表
         """
+        # 调试：打印推文数据
+        print(f"[DEBUG] 收到 {len(tweets)} 条推文")
+        for i, t in enumerate(tweets[:3]):  # 只打印前3条
+            print(f"[DEBUG] 推文 {i+1}: tweetId={t.get('tweetId')}, content长度={len(t.get('content', ''))}")
+            print(f"[DEBUG] 推文 {i+1} 内容预览: {t.get('content', '')[:100]}")
+
+        # 过滤掉没有内容的推文
+        valid_tweets = [t for t in tweets if t.get('content', '').strip()]
+        if len(valid_tweets) < len(tweets):
+            print(f"[DEBUG] 过滤掉 {len(tweets) - len(valid_tweets)} 条空内容推文")
+
+        if not valid_tweets:
+            print("[DEBUG] 所有推文都没有内容，返回空结果")
+            return {"signals": [], "allScores": []}
+
         # 构建分析提示词
-        prompt = self._construct_analysis_prompt(tweets, user_profile)
+        prompt = self._construct_analysis_prompt(valid_tweets, user_profile)
+
+        # 调试：打印 prompt 长度
+        print(f"[DEBUG] 构建的 prompt 长度: {len(prompt)} 字符")
 
         try:
-            # 调用 Claude API 进行分析
+            model_name = str(self.model) if self.model else "claude-3-5-sonnet-20241022"
             message = self.client.messages.create(
-                model=self.model,              # 使用的模型
-                max_tokens=4096,               # 最大生成 token 数
-                temperature=0,                 # 温度设为 0，获得更确定性的输出
-                system="You are a professional Twitter content analysis assistant. Your goal is to filter noise and identify high-value information for the user.",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+                model=model_name,              # type: ignore
+                max_tokens=1024,  # 渐进式分析：减少输出以加快响应速度
+                temperature=0,
+                system="你是一个资深的社交媒体内容分析专家。",
+                messages=[{"role": "user", "content": prompt}]
             )
 
-            # 提取响应内容
-            content = message.content[0].text
+            # 获取响应文本
+            content = ""
+            for block in message.content:
+                if hasattr(block, 'text'):
+                    content += getattr(block, 'text', "")  # type: ignore
 
-            # 记录原始响应用于调试
-            print(f"API 响应长度: {len(content)} 字符")
-            print(f"API 响应前 200 字符: {content[:200]}")
+            print(f"推文分析 API 响应长度: {len(content)} 字符")
 
             # 检查响应是否为空
             if not content or content.strip() == "":
-                print("警告: API 返回空响应")
-                return {"signals": []}
+                print("警告: 推文分析 API 返回空响应")
+                return {"signals": [], "allScores": []}
 
-            # 如果 Claude 将 JSON 包装在 markdown 代码块中，需要提取出来
+            # 提取 JSON（处理可能的 markdown 代码块）
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0].strip()
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0].strip()
+            else:
+                # 如果没有代码块，尝试提取 JSON 对象
+                start = content.find('{')
+                end = content.rfind('}') + 1
+                if start != -1 and end > 0:
+                    content = content[start:end]
 
-            # 解析 JSON 并返回
+            # 尝试解析 JSON
             try:
                 result = json.loads(content)
-                print(f"成功解析 JSON，包含 {len(result.get('signals', []))} 个信号")
+                signals_count = len(result.get('signals', []))
+                scores_count = len(result.get('allScores', []))
+                print(f"成功解析推文分析 JSON: {signals_count} 个信号, {scores_count} 条评分")
                 return result
             except json.JSONDecodeError as je:
-                print(f"JSON 解析失败: {je}")
+                print(f"推文分析 JSON 解析失败: {je}")
                 print(f"尝试解析的内容:\n{content}")
-                return {"signals": []}
+                return {"signals": [], "allScores": []}
 
         except Exception as e:
             # 发生错误时返回空信号列表
@@ -128,30 +150,27 @@ class SignalAgent:
                 "metrics": t.get("engagement")  # 互动数据
             })
 
-        # 构建完整的提示词
+        # 构建完整的提示词 - 简化版，快速响应
         return f"""用户信息:
 - 身份: {user_profile.get('persona', 'unknown')}
 - 关注领域: {', '.join([i['label'] for i in user_profile.get('interests', []) if i.get('enabled')])}
 - 自定义关键词: {', '.join(user_profile.get('customKeywords', []))}
 
 任务:
-分析以下推文，判断它们是否对用户有价值。对于有价值的推文，需要用**中文**提供深入解读。
+快速分析以下推文，判断它们对用户的价值并评分。
 
 推文列表:
 {json.dumps(simplified_tweets, ensure_ascii=False, indent=2)}
 
-输出格式 (JSON):
+输出格式 (JSON) - 简化版:
 {{
   "signals": [
     {{
       "tweetId": "...",
       "isValuable": true,
-      "category": "...",
+      "category": "技术/产品/趋势",
       "score": 85,
-      "aiSummary": "用一句话概括核心价值",
-      "detailedExplanation": "详细解读这条推文想说明什么问题、为什么值得关注",
-      "whyItMatters": "解释这个信息对用户的意义",
-      "keyInsights": ["提取2-3个关键洞察点"],
+      "aiSummary": "一句话概括（15字以内）",
       "matchReasons": [
         {{
           "type": "keyword",
@@ -160,17 +179,12 @@ class SignalAgent:
         }}
       ]
     }}
+  ],
+  "allScores": [
+    {{"tweetId": "...", "score": 85}},
+    {{"tweetId": "...", "score": 20}}
   ]
 }}
-
-解读要求（重要）:
-1. **语言**: 必须使用**中文**进行解读，无论原文是什么语言
-2. **受众**: 假设读者是**高中生水平**，用通俗易懂的语言解释
-3. **结构**:
-   - 先说明"这条推文在讲什么"
-   - 再解释"为什么这个问题值得关注"
-   - 最后给出"对读者有什么启发"
-4. **深度**: 既要通俗易懂，又要传达核心洞察
 
 评分标准:
 1. 关键词匹配度 (40%)
@@ -179,11 +193,11 @@ class SignalAgent:
 4. 时间新鲜度 (10%)
 
 注意事项:
-- 只返回 score >= 70 的高价值信号
-- detailedExplanation 要用3-5句话详细解读，确保高中生也能理解
-- 避免使用专业术语，必要时用比喻或类比
-- aiSummary 保持简洁，detailedExplanation 提供深度
+- signals 列表中只返回 score >= 70 的高价值信号
+- allScores 列表中返回**所有**推文的评分 (0-100)
+- aiSummary 必须简短（15字以内），直接说重点
 - 必须输出合法的 JSON 格式
+- **重要**: 快速判断，不需要详细解读
 """
 
     def extract_interests(self, likes: List[Dict]) -> Dict:
@@ -234,17 +248,23 @@ Likes 数据:
 """
 
         try:
+            # 使用配置的模型或默认值
+            model_name = str(self.model) if self.model else "claude-3-5-sonnet-20241022"
+
             # 调用 Claude API 进行兴趣分析
             message = self.client.messages.create(
-                model=self.model,
-                max_tokens=2048,
+                model=model_name,              # type: ignore
+                max_tokens=12800,
                 temperature=0.2,  # 稍高的温度以获得更多样化的输出
                 system="You are a user interest analysis expert.",
                 messages=[{"role": "user", "content": prompt}]
             )
 
             # 提取并解析响应
-            content = message.content[0].text
+            content = ""
+            for block in message.content:
+                if hasattr(block, 'text'):
+                    content += getattr(block, 'text', "")  # type: ignore
 
             # 记录原始响应用于调试
             print(f"兴趣分析 API 响应长度: {len(content)} 字符")
@@ -329,17 +349,23 @@ Likes 数据:
 """
 
         try:
+            # 使用配置的模型或默认值
+            model_name = str(self.model) if self.model else "claude-3-5-sonnet-20241022"
+            
             # 调用 Claude API
             message = self.client.messages.create(
-                model=self.model,
-                max_tokens=2048,
+                model=model_name,              # type: ignore
+                max_tokens=12800,
                 temperature=0.3,
                 system="You are a quick content analysis expert. Identify main topics efficiently.",
                 messages=[{"role": "user", "content": prompt}]
             )
 
             # 提取并解析响应
-            content = message.content[0].text
+            content = ""
+            for block in message.content:
+                if hasattr(block, 'text'):
+                    content += getattr(block, 'text', "")  # type: ignore
 
             print(f"时间线分析响应长度: {len(content)} 字符")
 

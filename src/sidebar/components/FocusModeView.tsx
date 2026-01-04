@@ -16,13 +16,21 @@ export const FocusModeView: React.FC<FocusModeViewProps> = ({ onSettingsChange }
     threshold: 70
   });
   const [blurredCount, setBlurredCount] = useState(0);
+  const [collectionCount, setCollectionCount] = useState(100); // 收集条数
+  const [autoMonitoring, setAutoMonitoring] = useState(false); // 自动监控
 
   useEffect(() => {
     // 加载保存的设置
     if (typeof chrome !== 'undefined' && chrome.storage) {
-      chrome.storage.local.get(['tsfFocusSettings'], (result) => {
+      chrome.storage.local.get(['tsfFocusSettings', 'tsfCollectionCount', 'tsfAutoMonitoring'], (result) => {
         if (result.tsfFocusSettings) {
           setSettings(result.tsfFocusSettings);
+        }
+        if (result.tsfCollectionCount) {
+          setCollectionCount(result.tsfCollectionCount);
+        }
+        if (result.tsfAutoMonitoring !== undefined) {
+          setAutoMonitoring(result.tsfAutoMonitoring);
         }
       });
     }
@@ -187,6 +195,55 @@ export const FocusModeView: React.FC<FocusModeViewProps> = ({ onSettingsChange }
         💡 按住 <kbd>Shift</kbd> 临时显示全部内容
       </div>
 
+      {/* 监控设置 */}
+      <div className="monitoring-settings">
+        <h4>监控设置</h4>
+
+        {/* 收集条数 */}
+        <div className="setting-item">
+          <label className="setting-label">分析条数</label>
+          <div className="setting-options">
+            {[50, 100, 200].map(count => (
+              <button
+                key={count}
+                className={`option-btn ${collectionCount === count ? 'active' : ''}`}
+                onClick={() => {
+                  setCollectionCount(count);
+                  chrome.storage.local.set({ tsfCollectionCount: count });
+                }}
+              >
+                {count} 条
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 自动监控开关 */}
+        <div className="setting-item">
+          <label className="setting-label">
+            <input
+              type="checkbox"
+              checked={autoMonitoring}
+              onChange={(e) => {
+                const enabled = e.target.checked;
+                setAutoMonitoring(enabled);
+                chrome.storage.local.set({ tsfAutoMonitoring: enabled });
+
+                // 通知 background 启用/禁用自动监控
+                chrome.runtime.sendMessage({
+                  type: enabled ? 'START_AUTO_MONITORING' : 'STOP_AUTO_MONITORING'
+                });
+              }}
+              className="setting-checkbox"
+            />
+            <span>实时自动监控新推文</span>
+          </label>
+          <p className="setting-description">
+            自动分析时间线上的新推文，无需手动触发
+          </p>
+        </div>
+      </div>
+
       {/* 快捷操作 */}
       <div className="quick-actions">
         <h4>快捷操作</h4>
@@ -202,6 +259,18 @@ export const FocusModeView: React.FC<FocusModeViewProps> = ({ onSettingsChange }
             onClick={() => chrome.runtime.sendMessage({ type: 'CLEAR_ALL_SIGNALS' })}
           >
             清除所有信号
+          </button>
+          <button
+            className="action-btn"
+            onClick={() => {
+              // 清除已分析推文记录
+              chrome.storage.local.remove(['analyzedTweetIds'], () => {
+                console.log('TSF: Cleared analyzed tweets cache');
+                alert('已清除分析缓存，下次将重新分析所有推文');
+              });
+            }}
+          >
+            清除分析缓存
           </button>
         </div>
       </div>

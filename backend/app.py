@@ -1,5 +1,5 @@
 """
-趋势信号 (Twitter Ant) - Flask API 服务器
+# 趋势信号 (Trend Signal Free - TSF) - Flask API 服务器
 
 这个模块提供 RESTful API 接口，用于：
 1. 分析推文并返回趋势信号
@@ -58,7 +58,8 @@ def analyze_tweets():
 
         # 提取信号列表
         signals = result.get('signals', [])
-        print(f"[API] 发现 {len(signals)} 个信号")
+        all_scores = result.get('allScores', [])
+        print(f"[API] 发现 {len(signals)} 个信号, 共有 {len(all_scores)} 条推文评分")
 
         # 丰富信号数据，添加完整的推文信息
         enriched_signals = []
@@ -91,6 +92,7 @@ def analyze_tweets():
         # 返回分析结果
         return jsonify({
             "signals": enriched_signals,
+            "allScores": all_scores,
             "metadata": {
                 "processedCount": len(tweets),           # 处理的推文数量
                 "signalCount": len(enriched_signals),     # 发现的信号数量

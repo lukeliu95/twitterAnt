@@ -119,8 +119,9 @@ class SidebarManager {
 class TweetCapture {
   private observer: MutationObserver | null = null;
   private capturedTweets: Set<string> = new Set();
+  private analyzedTweets: Set<string> = new Set(); // 已分析的推文 ID
   private batchQueue: Partial<Tweet>[] = [];
-  private BATCH_SIZE = 100; // 普通时间线的批量大小 - 累积到 100 条再发送
+  private BATCH_SIZE = 20; // 小批次分析 - 累积到 20 条就发送（渐进式分析）
   private LIKES_BATCH_SIZE = 100; // Likes 页面的批量大小
   private likesQueue: Partial<Tweet>[] = []; // Likes 专用队列
   private collectedLikesCount = 0; // 已收集的 likes 数量
@@ -131,11 +132,39 @@ class TweetCapture {
   private hasSentLikesForAnalysis: boolean = false; // 是否已发送 likes 用于分析
   private isCollectingForAnalysis: boolean = false; // 是否正在收集用于分析
   private lastSendTime: number = 0; // 上次发送时间
-  private sendCooldown: number = 30000; // 发送冷却时间 30 秒
+  private sendCooldown: number = 5000; // 发送冷却时间 5 秒（加快分析速度）
   private hasSentInitialBatch: boolean = false; // 是否已发送初始批次
+  private paused: boolean = false; // 是否暂停捕获
 
   constructor() {
+    this.loadAnalyzedTweets();
     this.start();
+  }
+
+  /**
+   * 加载已分析的推文列表
+   */
+  private loadAnalyzedTweets() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.get(['analyzedTweetIds'], (result) => {
+        if (result.analyzedTweetIds && Array.isArray(result.analyzedTweetIds)) {
+          this.analyzedTweets = new Set(result.analyzedTweetIds);
+          console.log(`TSF: Loaded ${this.analyzedTweets.size} analyzed tweet IDs`);
+        }
+      });
+    }
+  }
+
+  /**
+   * 保存已分析的推文列表
+   */
+  private saveAnalyzedTweets() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      const idsArray = Array.from(this.analyzedTweets);
+      // 只保留最近的 10000 条，避免存储过大
+      const recentIds = idsArray.slice(-10000);
+      chrome.storage.local.set({ analyzedTweetIds: recentIds });
+    }
   }
 
   // Start listening
@@ -194,15 +223,93 @@ class TweetCapture {
       return true;
     });
 
+    // 监听暂停/恢复捕获请求
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message.type === 'PAUSE_TWEET_CAPTURE') {
+        this.pauseCapture();
+        sendResponse({ success: true });
+      } else if (message.type === 'RESUME_TWEET_CAPTURE') {
+        this.resumeCapture();
+        sendResponse({ success: true });
+      }
+      return true;
+    });
+
     // 检查是否在 likes 页面
     this.checkLikesPageAndStartScroll();
+
+    // 检查是否有待处理的时间线分析
+    this.checkPendingTimelineAnalysis();
+  }
+
+  /**
+   * 检查是否有待处理的时间线分析（通常发生在跳转到主页后）
+   */
+  private checkPendingTimelineAnalysis() {
+    const isOnHomepage = window.location.pathname === '/home' ||
+                          window.location.pathname === '/';
+
+    if (isOnHomepage) {
+      // 延迟检查，确保页面完全加载
+      setTimeout(() => {
+        try {
+          chrome.storage.local.get(['pendingTimelineAnalysis'], (result) => {
+            if (result.pendingTimelineAnalysis) {
+              console.log('TSF: Found pending timeline analysis, starting now...');
+              // 清除标志
+              chrome.storage.local.remove(['pendingTimelineAnalysis']);
+              
+              // 发送消息显示提示，而不是直接开始
+              window.postMessage({ type: 'SHOW_TIMELINE_PROMPT' }, '*');
+              // 同时通过 chrome.runtime 发送，确保 PromptManager 收到
+              chrome.runtime.sendMessage({ type: 'SHOW_TIMELINE_PROMPT' }).catch(() => {});
+            }
+          });
+        } catch (err) {
+          // 忽略上下文失效错误
+          if (err instanceof Error && !err.message.includes('Extension context invalidated')) {
+            console.error('TSF: Check pending analysis error:', err);
+          }
+        }
+      }, 1000);
+    }
   }
 
   /**
    * 处理时间线收集请求
    */
   private handleTimelineCollection(data: { targetCount?: number }) {
-    const targetCount = data?.targetCount || 100;
+    // 从 storage 获取用户设置的收集条数
+    chrome.storage.local.get(['tsfCollectionCount'], (result) => {
+      const userTargetCount = result.tsfCollectionCount || 100;
+      const targetCount = data?.targetCount || userTargetCount;
+      this.startTimelineCollection(targetCount);
+    });
+  }
+
+  /**
+   * 开始时间线收集
+   */
+  private startTimelineCollection(targetCount: number) {
+
+    // 安全的消息发送包装函数
+    const safeSendMessage = (message: any) => {
+      try {
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+          chrome.runtime.sendMessage(message).catch((err) => {
+            // 忽略上下文失效错误
+            if (err.message && !err.message.includes('Extension context invalidated')) {
+              console.error('TSF: Send message error:', err);
+            }
+          });
+        }
+      } catch (err) {
+        // 忽略上下文失效错误
+        if (err instanceof Error && !err.message.includes('Extension context invalidated')) {
+          console.error('TSF: Send message error:', err);
+        }
+      }
+    };
 
     // 创建时间线收集器
     const collector = new TimelineCollector();
@@ -212,26 +319,32 @@ class TweetCapture {
       console.log(`TSF: Timeline collection complete, collected ${tweets.length} tweets`);
 
       // 保存收集的推文
-      chrome.storage.local.set({ collectedTimeline: tweets }, () => {
-        // 通知收集完成
-        chrome.runtime.sendMessage({
-          type: 'TIMELINE_COLLECTION_COMPLETE'
-        }).catch(() => {});
-
-        // 通知侧边栏可以开始分析
-        chrome.runtime.sendMessage({
-          type: 'TIMELINE_READY_FOR_ANALYSIS',
-          data: { count: tweets.length }
-        }).catch(() => {});
-      });
+      try {
+        chrome.storage.local.set({ collectedTimeline: tweets }, () => {
+          // 立即发送分析请求到 background
+          safeSendMessage({
+            type: 'ANALYZE_TWEETS',
+            data: tweets
+          });
+        });
+      } catch (err) {
+        // 忽略上下文失效错误
+        if (err instanceof Error && !err.message.includes('Extension context invalidated')) {
+          console.error('TSF: Storage error:', err);
+        }
+      }
     }).catch((error) => {
+      // 忽略上下文失效错误
+      if (error instanceof Error && error.message.includes('Extension context invalidated')) {
+        console.log('TSF: Collection cancelled due to page navigation');
+        return;
+      }
       console.error('TSF: Timeline collection failed:', error);
 
-      // 通知错误
-      chrome.runtime.sendMessage({
-        type: 'TIMELINE_COLLECTION_ERROR',
-        data: { error: String(error) }
-      }).catch(() => {});
+      // 通知分析完成（即使失败也通知，避免界面一直卡住）
+      safeSendMessage({
+        type: 'TIMELINE_ANALYSIS_COMPLETE'
+      });
     });
   }
 
@@ -292,7 +405,28 @@ class TweetCapture {
     chrome.storage.local.set({ currentUserHandle: handle });
   }
 
+  /**
+   * 暂停推文捕获
+   */
+  pauseCapture() {
+    this.paused = true;
+    console.log('TSF: Tweet capture paused');
+  }
+
+  /**
+   * 恢复推文捕获
+   */
+  resumeCapture() {
+    this.paused = false;
+    console.log('TSF: Tweet capture resumed');
+  }
+
   detectNewTweets(mutations: MutationRecord[]) {
+    // 如果暂停捕获，直接返回
+    if (this.paused) {
+      return;
+    }
+
     // 检查是否在 likes 页面
     const isLikesPage = window.location.pathname.endsWith('/likes');
 
@@ -371,7 +505,9 @@ class TweetCapture {
         this.sendLikesBatch();
       }
     } else if (!isLikesPage) {
+      // 渐进式分析：达到批次大小就立即发送，不等待
       if (this.batchQueue.length >= this.BATCH_SIZE) {
+        console.log(`TSF: 渐进式分析 - 已收集 ${this.batchQueue.length} 条，立即发送分析`);
         this.sendBatch();
       }
     }
@@ -439,18 +575,38 @@ class TweetCapture {
 
     const batch = this.batchQueue.splice(0, this.BATCH_SIZE);
 
+    // 过滤掉已分析的推文（性能优化）
+    const unanalyzedBatch = batch.filter(tweet => {
+      return tweet.tweetId && !this.analyzedTweets.has(tweet.tweetId);
+    });
+
+    if (unanalyzedBatch.length === 0) {
+      console.log('TSF: All tweets in batch already analyzed, skipping');
+      return;
+    }
+
     // Determine context based on URL
     const isLikesPage = window.location.pathname.endsWith('/likes');
     const messageType = isLikesPage ? 'EXTRACT_INTERESTS' : 'ANALYZE_TWEETS';
 
-    console.log(`TSF: Sending batch (${messageType})`, batch.length);
+    console.log(`TSF: Sending batch (${messageType}), total: ${batch.length}, new: ${unanalyzedBatch.length}`);
+
+    // 标记这些推文为已分析
+    unanalyzedBatch.forEach(tweet => {
+      if (tweet.tweetId) {
+        this.analyzedTweets.add(tweet.tweetId);
+      }
+    });
+
+    // 保存已分析列表
+    this.saveAnalyzedTweets();
 
     this.lastSendTime = now;
     this.hasSentInitialBatch = true;
 
     chrome.runtime.sendMessage({
       type: messageType,
-      data: batch
+      data: unanalyzedBatch
     });
   }
 
@@ -553,7 +709,30 @@ class TweetCapture {
   }
 
   getContent(element: HTMLElement): string {
-    return element.querySelector('[data-testid="tweetText"]')?.textContent || '';
+    // 尝试多种选择器以提高兼容性
+    let content = element.querySelector('[data-testid="tweetText"]')?.textContent || '';
+
+    // 如果没找到，尝试其他可能的选择器
+    if (!content) {
+      // 尝试通过 lang 属性查找
+      const langDiv = element.querySelector('div[lang]');
+      if (langDiv) {
+        content = langDiv.textContent || '';
+      }
+    }
+
+    // 如果还是没找到，尝试查找文章元素
+    if (!content) {
+      const article = element.closest('article');
+      if (article) {
+        const textDivs = article.querySelectorAll('div[lang], div[data-testid="tweetText"]');
+        if (textDivs.length > 0) {
+          content = Array.from(textDivs).map(div => div.textContent).join(' ').trim();
+        }
+      }
+    }
+
+    return content.trim();
   }
 
   getTimestamp(element: HTMLElement): string {

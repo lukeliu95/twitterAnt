@@ -1,4 +1,4 @@
-# Twitter Ant - Backend Server
+# Trend Signal Free (TSF) - Backend Server
 
 趋势信号 (TSF) 后端服务，基于 Flask 和 Anthropic Claude API 构建。
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Chrome } from 'lucide-react';
+import { useStore } from '../store';
 
 interface OnboardingViewProps {
   onComplete: () => void;
@@ -14,6 +15,7 @@ interface CollectionProgress {
 }
 
 export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete, onSkip }) => {
+  const { setInterests, setRecommendedKeywords, setAnalyzingInterests } = useStore();
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState<CollectionProgress>({
@@ -30,7 +32,21 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete, onSk
         if (message.type === 'LIKES_COLLECTION_PROGRESS') {
           setProgress(message.data);
           setStep(2); // 进入收集步骤
+        } else if (message.type === 'LIKES_COLLECTION_COMPLETE') {
+          // 收集完成，进入分析阶段
+          setStep(3);
+          setProgress({
+            phase: 'analyzing',
+            collected: progress.collected,
+            target: progress.target,
+            message: 'AI 正在分析你的兴趣...'
+          });
         } else if (message.type === 'INTERESTS_UPDATED') {
+          console.log('Onboarding: Received INTERESTS_UPDATED', message.data);
+          // 更新 store 中的兴趣数据
+          setInterests(message.data.interests);
+          setRecommendedKeywords(message.data.recommendedKeywords);
+          setAnalyzingInterests(false);
           // 分析完成，进入完成步骤
           setStep(4);
           setIsProcessing(false);
@@ -45,7 +61,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete, onSk
       chrome.runtime.onMessage.addListener(listener);
       return () => chrome.runtime.onMessage.removeListener(listener);
     }
-  }, []);
+  }, [progress.collected, progress.target, setInterests, setRecommendedKeywords, setAnalyzingInterests]);
 
   const handleStart = async () => {
     setIsProcessing(true);
@@ -165,7 +181,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete, onSk
           <div className="onboarding-icon">
             <Chrome size={64} />
           </div>
-          <h2 className="onboarding-title">欢迎使用 Twitter Ant</h2>
+          <h2 className="onboarding-title">Trend Signal Free - TSF</h2>
           <p className="onboarding-description">
             让 AI 帮你从海量信息中筛选真正有价值的内容
           </p>
