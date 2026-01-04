@@ -13,6 +13,17 @@ chrome.storage.local.get(['tsfAutoMonitoring'], (result) => {
   }
 });
 
+// 处理图标点击
+chrome.action.onClicked.addListener((tab) => {
+  if (tab.id) {
+    chrome.tabs.sendMessage(tab.id, {
+      type: 'SHOW_SIDEBAR'
+    }).catch(() => {
+      console.log('TSF: Failed to send SHOW_SIDEBAR to tab:', tab.id);
+    });
+  }
+});
+
 // Listen for messages
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   console.log('Background received message:', message);
@@ -83,11 +94,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   // 处理时间线收集开始请求
   if (message.type === 'START_TIMELINE_COLLECTION') {
-    // 保存是否需要自动启动专注模式的标志
-    if (message.data?.autoStartFocusMode) {
-      chrome.storage.local.set({ autoStartFocusMode: true });
-    }
-
     chrome.tabs.query({ url: ['*://*.twitter.com/*', '*://*.x.com/*'] }, (tabs) => {
       tabs.forEach(tab => {
         if (tab.id && tab.url && (tab.url.includes('/home') || tab.url === 'https://x.com/' || tab.url === 'https://twitter.com/')) {
@@ -173,8 +179,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (activeTab && activeTab.id) {
         // 设置等待分析标志
         chrome.storage.local.set({ 
-          pendingTimelineAnalysis: true,
-          autoStartFocusMode: true 
+          pendingTimelineAnalysis: true
         }, () => {
           // 跳转到主页
           chrome.tabs.update(activeTab.id!, { url: 'https://x.com/home' });
@@ -196,8 +201,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         if (!isHome) {
           // 如果不在主页，跳转到主页并设置待分析标志
           chrome.storage.local.set({ 
-            pendingTimelineAnalysis: true,
-            autoStartFocusMode: true 
+            pendingTimelineAnalysis: true
           }, () => {
             chrome.tabs.update(tabId, { url: 'https://x.com/home' });
           });
@@ -263,7 +267,7 @@ async function analyzeTweets(tweets: Tweet[]): Promise<Signal[]> {
     }
 
     if (allScores.length > 0) {
-      // 存储所有评分，供专注模式使用
+      // 存储所有评分
       await saveAllScores(allScores);
     }
 
@@ -271,55 +275,6 @@ async function analyzeTweets(tweets: Tweet[]): Promise<Signal[]> {
     chrome.runtime.sendMessage({
       type: 'TIMELINE_ANALYSIS_COMPLETE'
     }).catch(() => {});
-
-    // 检查是否需要自动启动专注模式
-    const autoStartResult = await new Promise<{ autoStartFocusMode: boolean }>((resolve) => {
-      chrome.storage.local.get(['autoStartFocusMode'], (result) => {
-        resolve({ autoStartFocusMode: result.autoStartFocusMode || false });
-      });
-    });
-
-    if (autoStartResult.autoStartFocusMode) {
-      console.log('TSF: Auto-starting focus mode after timeline analysis');
-      // 清除标志
-      chrome.storage.local.remove(['autoStartFocusMode']);
-
-      // 启动专注模式
-      chrome.storage.local.set({
-        tsfFocusSettings: {
-          mode: 'focused',
-          threshold: 50,
-          shiftKeyActive: false
-        }
-      });
-
-      // 通知所有标签页应用专注模式，并暂停推文捕获
-      chrome.tabs.query({ url: ['*://*.twitter.com/*', '*://*.x.com/*'] }, (tabs) => {
-        tabs.forEach(tab => {
-          if (tab.id) {
-            // 应用专注模式
-            chrome.tabs.sendMessage(tab.id, {
-              type: 'SET_FOCUS_MODE',
-              data: {
-                mode: 'focused',
-                threshold: 50
-              }
-            }).catch(() => {});
-
-            // 暂停推文捕获
-            chrome.tabs.sendMessage(tab.id, {
-              type: 'PAUSE_TWEET_CAPTURE'
-            }).catch(() => {});
-          }
-        });
-      });
-
-      // 通知侧边栏切换到专注模式视图
-      chrome.runtime.sendMessage({
-        type: 'SWITCH_SIDEBAR_VIEW',
-        data: { view: 'focus' }
-      }).catch(() => {});
-    }
 
     return signals;
   } catch (error) {
@@ -416,7 +371,7 @@ async function extractInterests(likes: Tweet[]) {
           if (tab.id && tab.url && (tab.url.includes('/home') || tab.url === 'https://x.com/' || tab.url === 'https://twitter.com/')) {
             chrome.tabs.sendMessage(tab.id, {
               type: 'START_TIMELINE_COLLECTION',
-              data: { targetCount: 100, autoStartFocusMode: true }
+              data: { targetCount: 100 }
             }).catch(() => {
               console.log('TSF: Failed to start auto timeline analysis on tab:', tab.id);
             });

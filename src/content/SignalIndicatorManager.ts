@@ -21,7 +21,7 @@ export class SignalIndicatorManager {
   /**
    * 查找推文元素
    */
-  private findTweetElement(tweetId: string): HTMLElement | null {
+  public findTweetElement(tweetId: string): HTMLElement | null {
     // Twitter 的推文链接格式: /username/status/123456
     const tweetElements = document.querySelectorAll('[data-testid="tweet"]');
     for (const el of tweetElements) {
@@ -79,17 +79,11 @@ export class SignalIndicatorManager {
 
     // 创建卡片内容
     const scoreBadge = this.getScoreBadge(signal.score);
-    const reasons = this.getReasonsHTML(signal.matchReasons);
     const summary = signal.aiSummary || '此内容可能与你关注的话题相关';
 
     card.innerHTML = `
       <div class="tsf-card-header">
         ${scoreBadge}
-        <div class="tsf-card-actions">
-          <button class="tsf-action-btn tsf-whitelist-btn" title="双击星标添加到白名单">⭐</button>
-          <button class="tsf-action-btn tsf-feedback-btn tsf-feedback-up" title="有用">👍</button>
-          <button class="tsf-action-btn tsf-feedback-btn tsf-feedback-down" title="无感">👎</button>
-        </div>
       </div>
 
       <!-- AI 总结区域 -->
@@ -97,185 +91,9 @@ export class SignalIndicatorManager {
         <span class="tsf-summary-icon">💡</span>
         <span class="tsf-summary-text">${this.escapeHtml(summary)}</span>
       </div>
-
-      <!-- 匹配原因标签 -->
-      <div class="tsf-card-reasons">
-        ${reasons}
-      </div>
-
-      <!-- 可展开的详情区域 -->
-      <div class="tsf-card-expandable">
-        <button class="tsf-expand-btn">
-          <span class="tsf-expand-icon">▼</span>
-          <span class="tsf-expand-text">展开详情</span>
-        </button>
-
-        <div class="tsf-card-details" style="display: none;">
-          <!-- 详细解读 (如果有) -->
-          ${(signal as any).detailedExplanation ? `
-            <div class="tsf-detail-section">
-              <h4>📄 详细解读</h4>
-              <p>${this.escapeHtml((signal as any).detailedExplanation)}</p>
-            </div>
-          ` : ''}
-
-          <!-- 为什么值得关注 (如果有) -->
-          ${(signal as any).whyItMatters ? `
-            <div class="tsf-detail-section">
-              <h4>💎 为什么值得关注</h4>
-              <p>${this.escapeHtml((signal as any).whyItMatters)}</p>
-            </div>
-          ` : ''}
-
-          <!-- 关键洞察 (如果有) -->
-          ${(signal as any).keyInsights && (signal as any).keyInsights.length > 0 ? `
-            <div class="tsf-detail-section">
-              <h4>🔍 关键洞察</h4>
-              <ul>
-                ${(signal as any).keyInsights.map((insight: string) =>
-                  `<li>${this.escapeHtml(insight)}</li>`
-                ).join('')}
-              </ul>
-            </div>
-          ` : ''}
-
-          <!-- 反馈区域 -->
-          <div class="tsf-detail-section">
-            <h4>📊 帮助我们改进</h4>
-            <div class="tsf-feedback-buttons">
-              <button class="tsf-feedback-detailed" data-feedback="helpful">
-                👍 有用
-              </button>
-              <button class="tsf-feedback-detailed" data-feedback="neutral">
-                😐 一般
-              </button>
-              <button class="tsf-feedback-detailed" data-feedback="wrong">
-                ⚠️ 误判
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
     `;
 
-    // 绑定事件监听器
-    this.attachCardEventListeners(card, signal);
-
     return card;
-  }
-
-  /**
-   * 绑定卡片事件监听器
-   */
-  private attachCardEventListeners(card: HTMLElement, signal: Signal) {
-    // 展开/收起按钮
-    const expandBtn = card.querySelector('.tsf-expand-btn');
-    const detailsSection = card.querySelector('.tsf-card-details');
-    const expandIcon = card.querySelector('.tsf-expand-icon');
-    const expandText = card.querySelector('.tsf-expand-text');
-
-    expandBtn?.addEventListener('click', () => {
-      const isExpanded = detailsSection && detailsSection instanceof HTMLElement
-        ? detailsSection.style.display !== 'none'
-        : false;
-
-      if (detailsSection && detailsSection instanceof HTMLElement) {
-        detailsSection.style.display = isExpanded ? 'none' : 'block';
-      }
-      if (expandIcon && expandIcon instanceof HTMLElement) {
-        expandIcon.textContent = isExpanded ? '▼' : '▲';
-      }
-      if (expandText && expandText instanceof HTMLElement) {
-        expandText.textContent = isExpanded ? '展开详情' : '收起详情';
-      }
-    });
-
-    // 星标按钮 (双击添加白名单)
-    const whitelistBtn = card.querySelector('.tsf-whitelist-btn');
-    let clickCount = 0;
-    let clickTimer: NodeJS.Timeout | null = null;
-
-    whitelistBtn?.addEventListener('click', () => {
-      clickCount++;
-
-      if (clickCount === 1) {
-        clickTimer = setTimeout(() => {
-          // 单击: 显示提示
-          this.showTooltip(whitelistBtn as HTMLElement, '双击添加到白名单');
-          clickCount = 0;
-        }, 300);
-      } else if (clickCount === 2) {
-        // 双击: 添加到白名单
-        if (clickTimer) clearTimeout(clickTimer);
-        this.addToWhitelist(signal.tweetId);
-        if (whitelistBtn) {
-          whitelistBtn.innerHTML = '⭐';
-          whitelistBtn.classList.add('tsf-whitelisted');
-        }
-        clickCount = 0;
-      }
-    });
-
-    // 快捷反馈按钮
-    const feedbackUpBtn = card.querySelector('.tsf-feedback-up');
-    const feedbackDownBtn = card.querySelector('.tsf-feedback-down');
-
-    feedbackUpBtn?.addEventListener('click', () => {
-      this.submitFeedback(signal.tweetId, 'helpful');
-      feedbackUpBtn.classList.add('tsf-feedback-active');
-      this.showTooltip(feedbackUpBtn as HTMLElement, '已反馈 👍');
-    });
-
-    feedbackDownBtn?.addEventListener('click', () => {
-      this.submitFeedback(signal.tweetId, 'neutral');
-      feedbackDownBtn.classList.add('tsf-feedback-active');
-      this.showTooltip(feedbackDownBtn as HTMLElement, '已反馈 👎');
-    });
-
-    // 详细反馈按钮
-    const detailedFeedbackBtns = card.querySelectorAll('.tsf-feedback-detailed');
-    detailedFeedbackBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const feedback = btn.getAttribute('data-feedback');
-        if (feedback) {
-          this.submitFeedback(signal.tweetId, feedback);
-          detailedFeedbackBtns.forEach(b => b.classList.remove('tsf-feedback-active'));
-          btn.classList.add('tsf-feedback-active');
-          this.showTooltip(btn as HTMLElement, '感谢反馈！');
-        }
-      });
-    });
-  }
-
-  /**
-   * 提交反馈
-   */
-  private submitFeedback(tweetId: string, feedback: string) {
-    chrome.runtime.sendMessage({
-      type: 'SUBMIT_SIGNAL_FEEDBACK',
-      data: { tweetId, feedback, timestamp: Date.now() }
-    });
-  }
-
-  /**
-   * 显示提示
-   */
-  private showTooltip(element: HTMLElement, message: string) {
-    const tooltip = document.createElement('div');
-    tooltip.className = 'tsf-tooltip';
-    tooltip.textContent = message;
-
-    document.body.appendChild(tooltip);
-
-    const rect = element.getBoundingClientRect();
-    tooltip.style.position = 'fixed';
-    tooltip.style.top = `${rect.top - 30}px`;
-    tooltip.style.left = `${rect.left + rect.width / 2}px`;
-    tooltip.style.transform = 'translateX(-50%)';
-
-    setTimeout(() => {
-      tooltip.remove();
-    }, 2000);
   }
 
   /**
@@ -285,27 +103,6 @@ export class SignalIndicatorManager {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
-  }
-
-  /**
-   * 添加到白名单
-   */
-  private addToWhitelist(tweetId: string) {
-    // 通过消息通知 FocusModeController
-    if (typeof window !== 'undefined' && (window as any).focusModeController) {
-      (window as any).focusModeController.addToWhitelist(tweetId);
-    }
-
-    // 保存到 storage
-    if (typeof chrome !== 'undefined' && chrome.storage) {
-      chrome.storage.local.get(['tsfWhitelist'], (result) => {
-        const whitelist = new Set(result.tsfWhitelist || []);
-        whitelist.add(tweetId);
-        chrome.storage.local.set({
-          tsfWhitelist: Array.from(whitelist)
-        });
-      });
-    }
   }
 
   /**
@@ -320,36 +117,6 @@ export class SignalIndicatorManager {
         <span class="tsf-score-label">趋势信号 TSF</span>
       </div>
     `;
-  }
-
-  /**
-   * 获取匹配原因 HTML
-   */
-  private getReasonsHTML(matchReasons: any[]): string {
-    if (!matchReasons || matchReasons.length === 0) {
-      return '<span class="tsf-no-reasons">基于你的兴趣偏好</span>';
-    }
-
-    return matchReasons.map(r => `
-      <span class="tsf-reason-tag" title="${r.explanation || r.value}">
-        ${this.getReasonIcon(r.type)} ${r.value}
-      </span>
-    `).join('');
-  }
-
-  /**
-   * 获取匹配原因图标
-   */
-  private getReasonIcon(type: string): string {
-    const icons: Record<string, string> = {
-      keyword: '🔑',
-      engagement: '💫',
-      timing: '⏱️',
-      related_account: '👤',
-      interest: '💡',
-      topic: '📌'
-    };
-    return icons[type] || '•';
   }
 
   /**

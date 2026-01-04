@@ -1,7 +1,6 @@
 // Content Script
 import { Tweet } from '../types';
 import { SignalIndicatorManager } from './SignalIndicatorManager';
-import { FocusModeController } from './FocusModeController';
 import { TimelineCollector } from './TimelineCollector';
 import { TimelinePromptManager } from './TimelinePromptManager';
 
@@ -113,7 +112,7 @@ class TweetCapture {
   private capturedTweets: Set<string> = new Set();
   private analyzedTweets: Set<string> = new Set(); // 已分析的推文 ID
   private batchQueue: Partial<Tweet>[] = [];
-  private BATCH_SIZE = 20; // 小批次分析 - 累积到 20 条就发送（渐进式分析）
+  private BATCH_SIZE = 1; // 设为 1，实现真正的逐条分析
   private LIKES_BATCH_SIZE = 100; // Likes 页面的批量大小
   private likesQueue: Partial<Tweet>[] = []; // Likes 专用队列
   private collectedLikesCount = 0; // 已收集的 likes 数量
@@ -124,9 +123,10 @@ class TweetCapture {
   private hasSentLikesForAnalysis: boolean = false; // 是否已发送 likes 用于分析
   private isCollectingForAnalysis: boolean = false; // 是否正在收集用于分析
   private lastSendTime: number = 0; // 上次发送时间
-  private sendCooldown: number = 5000; // 发送冷却时间 5 秒（加快分析速度）
+  private sendCooldown: number = 500; // 减小冷却时间到 0.5 秒，实现快速逐条响应
   private hasSentInitialBatch: boolean = false; // 是否已发送初始批次
   private paused: boolean = false; // 是否暂停捕获
+  private queueTimer: NodeJS.Timeout | null = null; // 队列处理定时器
 
   // 新增：信号统计
   private signalStats = {
@@ -137,7 +137,22 @@ class TweetCapture {
 
   constructor() {
     this.loadAnalyzedTweets();
+    this.loadSignalStats();
     this.start();
+  }
+
+  /**
+   * 加载信号统计
+   */
+  private loadSignalStats() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.get(['tsfSignalStats'], (result) => {
+        if (result.tsfSignalStats) {
+          this.signalStats = result.tsfSignalStats;
+          console.log('TSF: Loaded signal stats:', this.signalStats);
+        }
+      });
+    }
   }
 
   /**
@@ -595,9 +610,18 @@ class TweetCapture {
     const now = Date.now();
     const timeSinceLastSend = now - this.lastSendTime;
 
-    // 如果距离上次发送不足冷却时间，跳过
+    // 如果距离上次发送不足冷却时间，设置定时器稍后重试，然后返回
     if (timeSinceLastSend < this.sendCooldown && this.hasSentInitialBatch) {
-      console.log(`TSF: 冷却中，距离上次发送 ${timeSinceLastSend}ms，需要 ${this.sendCooldown}ms`);
+      if (!this.queueTimer) {
+        this.queueTimer = setTimeout(() => {
+          this.queueTimer = null;
+          this.sendBatch();
+        }, this.sendCooldown - timeSinceLastSend + 10);
+      }
+      return;
+    }
+
+    if (this.batchQueue.length === 0) {
       return;
     }
 
@@ -609,7 +633,10 @@ class TweetCapture {
     });
 
     if (unanalyzedBatch.length === 0) {
-      console.log('TSF: All tweets in batch already analyzed, skipping');
+      // 如果这一批都分析过了，继续尝试下一批
+      if (this.batchQueue.length > 0) {
+        this.sendBatch();
+      }
       return;
     }
 
@@ -636,6 +663,14 @@ class TweetCapture {
       type: messageType,
       data: unanalyzedBatch
     });
+
+    // 如果队列中还有，设置定时器处理下一个
+    if (this.batchQueue.length > 0 && !this.queueTimer) {
+      this.queueTimer = setTimeout(() => {
+        this.queueTimer = null;
+        this.sendBatch();
+      }, this.sendCooldown);
+    }
   }
 
   /**
@@ -901,18 +936,17 @@ class TweetCapture {
 }
 
 // Initialize
+const sidebarManager = new SidebarManager();
+const tweetCapture = new TweetCapture();
 const indicatorManager = new SignalIndicatorManager();
-const focusModeController = new FocusModeController();
-const tweetCapture = new TweetCapture(); // 保存引用以便访问
-new SidebarManager();
 new TimelinePromptManager();
 
-// 将 focusModeController 暴露到全局，供其他模块访问
-(window as any).focusModeController = focusModeController;
-(window as any).tweetCapture = tweetCapture; // 暴露 tweetCapture
-
-// 初始化专注模式控制器
-focusModeController.init();
+// Expose to window for debugging
+(window as any).tsf = {
+  sidebarManager,
+  tweetCapture,
+  indicatorManager
+};
 
 // Listen for signals from background script
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -922,12 +956,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.data.score) {
       tweetCapture.updateSignalStats(message.data.score);
     }
-    // 应用专注模式到新添加信号的推文
-    focusModeController.applyToTweets();
+    
     sendResponse({ success: true });
   } else if (message.type === 'REMOVE_SIGNAL') {
     indicatorManager.removeIndicator(message.data.tweetId);
-    focusModeController.applyToTweets();
     sendResponse({ success: true });
   }
   return true; // Keep message channel open for async response
