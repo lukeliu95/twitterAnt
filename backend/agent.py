@@ -79,7 +79,7 @@ class SignalAgent:
             model_name = str(self.model) if self.model else "claude-3-5-sonnet-20241022"
             message = self.client.messages.create(
                 model=model_name,              # type: ignore
-                max_tokens=1024,  # 渐进式分析：减少输出以加快响应速度
+                max_tokens=3072,  # 增加到 3072 以支持详细输出
                 temperature=0,
                 system="你是一个资深的社交媒体内容分析专家。",
                 messages=[{"role": "user", "content": prompt}]
@@ -150,19 +150,19 @@ class SignalAgent:
                 "metrics": t.get("engagement")  # 互动数据
             })
 
-        # 构建完整的提示词 - 简化版，快速响应
+        # 构建完整的提示词 - 详细版（用于推文卡片展示）
         return f"""用户信息:
 - 身份: {user_profile.get('persona', 'unknown')}
 - 关注领域: {', '.join([i['label'] for i in user_profile.get('interests', []) if i.get('enabled')])}
 - 自定义关键词: {', '.join(user_profile.get('customKeywords', []))}
 
 任务:
-快速分析以下推文，判断它们对用户的价值并评分。
+分析以下推文，判断它们对用户的价值并评分。为高价值推文提供详细解读。
 
 推文列表:
 {json.dumps(simplified_tweets, ensure_ascii=False, indent=2)}
 
-输出格式 (JSON) - 简化版:
+输出格式 (JSON) - 详细版:
 {{
   "signals": [
     {{
@@ -170,7 +170,13 @@ class SignalAgent:
       "isValuable": true,
       "category": "技术/产品/趋势",
       "score": 85,
-      "aiSummary": "一句话概括（15字以内）",
+      "aiSummary": "一句话概括（20字以内）",
+      "detailedExplanation": "详细解读这条推文的内容和价值（2-3句话）",
+      "whyItMatters": "为什么值得关注（1-2句话）",
+      "keyInsights": [
+        "关键洞察点 1",
+        "关键洞察点 2"
+      ],
       "matchReasons": [
         {{
           "type": "keyword",
@@ -195,9 +201,8 @@ class SignalAgent:
 注意事项:
 - signals 列表中只返回 score >= 70 的高价值信号
 - allScores 列表中返回**所有**推文的评分 (0-100)
-- aiSummary 必须简短（15字以内），直接说重点
+- aiSummary 简短（20字以内），detailedExplanation 详细（2-3句）
 - 必须输出合法的 JSON 格式
-- **重要**: 快速判断，不需要详细解读
 """
 
     def extract_interests(self, likes: List[Dict]) -> Dict:

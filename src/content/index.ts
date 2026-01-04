@@ -5,6 +5,9 @@ import { FocusModeController } from './FocusModeController';
 import { TimelineCollector } from './TimelineCollector';
 import { TimelinePromptManager } from './TimelinePromptManager';
 
+// 导入详细卡片样式
+import './signal-card-styles.css';
+
 // Sidebar Manager to handle iframe injection
 class SidebarManager {
   private iframe: HTMLIFrameElement | null = null;
@@ -136,6 +139,13 @@ class TweetCapture {
   private hasSentInitialBatch: boolean = false; // 是否已发送初始批次
   private paused: boolean = false; // 是否暂停捕获
 
+  // 新增：信号统计
+  private signalStats = {
+    total: 0,      // 总信号数
+    highValue: 0,  // 高价值信号数 (score >= 85)
+    mediumValue: 0 // 中价值信号数 (score 70-84)
+  };
+
   constructor() {
     this.loadAnalyzedTweets();
     this.start();
@@ -165,6 +175,30 @@ class TweetCapture {
       const recentIds = idsArray.slice(-10000);
       chrome.storage.local.set({ analyzedTweetIds: recentIds });
     }
+  }
+
+  /**
+   * 更新信号统计（新增）
+   */
+  updateSignalStats(score: number) {
+    this.signalStats.total++;
+
+    if (score >= 85) {
+      this.signalStats.highValue++;
+    } else if (score >= 70) {
+      this.signalStats.mediumValue++;
+    }
+
+    // 保存到 storage
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.set({ tsfSignalStats: this.signalStats });
+    }
+
+    // 通知侧边栏更新统计
+    chrome.runtime.sendMessage({
+      type: 'SIGNAL_STATS_UPDATED',
+      data: this.signalStats
+    }).catch(() => {});
   }
 
   // Start listening
@@ -873,12 +907,13 @@ class TweetCapture {
 // Initialize
 const indicatorManager = new SignalIndicatorManager();
 const focusModeController = new FocusModeController();
-new TweetCapture();
+const tweetCapture = new TweetCapture(); // 保存引用以便访问
 new SidebarManager();
 new TimelinePromptManager();
 
 // 将 focusModeController 暴露到全局，供其他模块访问
 (window as any).focusModeController = focusModeController;
+(window as any).tweetCapture = tweetCapture; // 暴露 tweetCapture
 
 // 初始化专注模式控制器
 focusModeController.init();
@@ -887,6 +922,10 @@ focusModeController.init();
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'NEW_SIGNAL') {
     indicatorManager.addSignal(message.data);
+    // 更新信号统计
+    if (message.data.score) {
+      tweetCapture.updateSignalStats(message.data.score);
+    }
     // 应用专注模式到新添加信号的推文
     focusModeController.applyToTweets();
     sendResponse({ success: true });

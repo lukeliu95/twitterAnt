@@ -1,17 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { X, MoreHorizontal, Home, Target, Activity } from 'lucide-react';
+import { X, MoreHorizontal, Activity } from 'lucide-react';
 
 interface HeaderProps {
   onSettingsClick?: () => void;
-  onHomeClick?: () => void;
-  onFocusModeClick?: () => void;
   onClose: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   onSettingsClick,
-  onHomeClick,
-  onFocusModeClick,
   onClose
 }) => {
   const [isMonitoring, setIsMonitoring] = useState(false);
@@ -52,29 +48,11 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         <div className="flex items-center gap-1 text-text-secondary">
-          {onHomeClick && (
-            <button
-              onClick={onHomeClick}
-              className="p-1.5 rounded hover:bg-hover-bg transition-colors"
-              title="Home"
-            >
-              <Home size={16} />
-            </button>
-          )}
-          {onFocusModeClick && (
-            <button
-              onClick={onFocusModeClick}
-              className="p-1.5 rounded hover:bg-hover-bg transition-colors"
-              title="Focus Mode"
-            >
-              <Target size={16} />
-            </button>
-          )}
           {onSettingsClick && (
             <button
               onClick={onSettingsClick}
               className="p-1.5 rounded hover:bg-hover-bg transition-colors"
-              title="Settings"
+              title="设置"
             >
               <MoreHorizontal size={16} />
             </button>
@@ -82,7 +60,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onClose}
             className="p-1.5 rounded hover:bg-hover-bg transition-colors"
-            title="Close Sidebar"
+            title="关闭侧边栏"
           >
             <X size={16} />
           </button>

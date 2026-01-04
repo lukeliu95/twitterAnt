@@ -1,0 +1,423 @@
+/* ===========================
+   TSF 详细信号卡片样式
+   推文为中心架构 - 所有信息直接显示在推文上
+   =========================== */
+
+.tsf-signal-card-wrapper {
+  margin: 12px 0;
+  width: 100%;
+}
+
+/* ===========================
+   基础卡片样式
+   =========================== */
+
+.tsf-signal-card {
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(247, 220, 111, 0.08) 0%, rgba(247, 220, 111, 0.12) 100%);
+  border: 2px solid rgba(247, 220, 111, 0.4);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.tsf-signal-card:hover {
+  background: linear-gradient(135deg, rgba(247, 220, 111, 0.12) 0%, rgba(247, 220, 111, 0.16) 100%);
+  border-color: rgba(247, 220, 111, 0.6);
+  box-shadow: 0 4px 12px rgba(247, 220, 111, 0.2);
+}
+
+/* ===========================
+   卡片头部区域
+   =========================== */
+
+.tsf-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+/* 分数徽章 */
+.tsf-score-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.tsf-score-badge.tsf-score-high {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%);
+  color: white;
+}
+
+.tsf-score-badge.tsf-score-medium {
+  background: linear-gradient(135deg, #4dabf7 0%, #74c0fc 100%);
+  color: white;
+}
+
+.tsf-score-badge.tsf-score-low {
+  background: linear-gradient(135deg, #ffd43b 0%, #ffe066 100%);
+  color: #333;
+}
+
+.tsf-score-icon {
+  font-size: 18px;
+}
+
+.tsf-score-value {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.tsf-score-label {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+/* 操作按钮组 */
+.tsf-card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.tsf-action-btn {
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.tsf-action-btn:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: rgba(247, 220, 111, 0.6);
+  transform: scale(1.1);
+}
+
+.tsf-action-btn.tsf-feedback-active {
+  background: rgba(247, 220, 111, 0.3);
+  border-color: rgba(247, 220, 111, 0.8);
+}
+
+.tsf-whitelisted {
+  background: rgba(255, 215, 0, 0.2) !important;
+  border-color: rgba(255, 215, 0, 0.6) !important;
+}
+
+/* ===========================
+   AI 总结区域
+   =========================== */
+
+.tsf-card-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.7);
+  border-left: 3px solid #f7dc6f;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.tsf-summary-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.tsf-summary-text {
+  flex: 1;
+  color: #333;
+  font-weight: 500;
+}
+
+/* ===========================
+   匹配原因标签
+   =========================== */
+
+.tsf-card-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.tsf-reason-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #555;
+  transition: all 0.2s;
+}
+
+.tsf-reason-tag:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: rgba(247, 220, 111, 0.6);
+  transform: translateY(-1px);
+}
+
+.tsf-reason-tag.tsf-reason-keyword {
+  border-color: rgba(52, 152, 219, 0.3);
+  background: rgba(52, 152, 219, 0.05);
+}
+
+.tsf-reason-tag.tsf-reason-engagement {
+  border-color: rgba(155, 89, 182, 0.3);
+  background: rgba(155, 89, 182, 0.05);
+}
+
+.tsf-reason-tag.tsf-reason-timing {
+  border-color: rgba(26, 188, 156, 0.3);
+  background: rgba(26, 188, 156, 0.05);
+}
+
+/* ===========================
+   可展开详情区域
+   =========================== */
+
+.tsf-card-expandable {
+  margin-top: 8px;
+}
+
+.tsf-expand-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px dashed rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 13px;
+  color: #666;
+  font-weight: 500;
+}
+
+.tsf-expand-btn:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(247, 220, 111, 0.5);
+  color: #333;
+}
+
+.tsf-expand-icon {
+  transition: transform 0.3s;
+}
+
+.tsf-card-details {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 详情区域的各个 section */
+.tsf-detail-section {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.tsf-detail-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.tsf-detail-section h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 6px;
+}
+
+.tsf-detail-section p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #666;
+  margin: 0;
+}
+
+.tsf-detail-section ul {
+  margin: 6px 0 0 0;
+  padding-left: 20px;
+}
+
+.tsf-detail-section li {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+/* 详细反馈按钮 */
+.tsf-feedback-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.tsf-feedback-detailed {
+  flex: 1;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.tsf-feedback-detailed:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: rgba(247, 220, 111, 0.6);
+  transform: translateY(-2px);
+}
+
+.tsf-feedback-detailed.tsf-feedback-active {
+  background: rgba(247, 220, 111, 0.3);
+  border-color: rgba(247, 220, 111, 0.8);
+}
+
+/* ===========================
+   提示框样式
+   =========================== */
+
+.tsf-tooltip {
+  position: fixed;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  font-size: 12px;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 10000;
+  pointer-events: none;
+  animation: fadeInOut 2s ease;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-5px); }
+  10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-5px); }
+}
+
+/* ===========================
+   兼容性：保留旧样式类
+   =========================== */
+
+.tsf-card-content {
+  /* 保留用于向后兼容 */
+}
+
+.tsf-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.tsf-card-details {
+  /* 新样式已定义 */
+}
+
+.tsf-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.tsf-summary {
+  font-size: 14px;
+  color: #333;
+  line-height: 1.5;
+}
+
+.tsf-no-reasons {
+  color: #999;
+  font-size: 12px;
+}
+
+.tsf-toggle-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: #666;
+  transition: color 0.2s;
+}
+
+.tsf-toggle-btn:hover {
+  color: #333;
+}
+
+.tsf-toggle-icon {
+  font-size: 12px;
+}
+
+.tsf-whitelist-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  position: relative;
+}
+
+.tsf-star-icon {
+  font-size: 16px;
+}
+
+.tsf-expanded .tsf-card-details {
+  display: block;
+}
+
+.tsf-whitelist-tooltip,
+.tsf-whitelist-success {
+  position: absolute;
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 1000;
+  animation: tooltipFade 0.3s ease;
+}
+
+@keyframes tooltipFade {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
