@@ -120,7 +120,7 @@ class TweetCapture {
   private observer: MutationObserver | null = null;
   private capturedTweets: Set<string> = new Set();
   private batchQueue: Partial<Tweet>[] = [];
-  private BATCH_SIZE = 10; // 普通时间线的批量大小
+  private BATCH_SIZE = 100; // 普通时间线的批量大小 - 累积到 100 条再发送
   private LIKES_BATCH_SIZE = 100; // Likes 页面的批量大小
   private likesQueue: Partial<Tweet>[] = []; // Likes 专用队列
   private collectedLikesCount = 0; // 已收集的 likes 数量
@@ -130,6 +130,9 @@ class TweetCapture {
   private maxScrollAttempts = 50; // 最大滚动次数
   private hasSentLikesForAnalysis: boolean = false; // 是否已发送 likes 用于分析
   private isCollectingForAnalysis: boolean = false; // 是否正在收集用于分析
+  private lastSendTime: number = 0; // 上次发送时间
+  private sendCooldown: number = 30000; // 发送冷却时间 30 秒
+  private hasSentInitialBatch: boolean = false; // 是否已发送初始批次
 
   constructor() {
     this.start();
@@ -424,6 +427,16 @@ class TweetCapture {
   }
 
   sendBatch() {
+    // 检查冷却时间
+    const now = Date.now();
+    const timeSinceLastSend = now - this.lastSendTime;
+
+    // 如果距离上次发送不足冷却时间，跳过
+    if (timeSinceLastSend < this.sendCooldown && this.hasSentInitialBatch) {
+      console.log(`TSF: 冷却中，距离上次发送 ${timeSinceLastSend}ms，需要 ${this.sendCooldown}ms`);
+      return;
+    }
+
     const batch = this.batchQueue.splice(0, this.BATCH_SIZE);
 
     // Determine context based on URL
@@ -431,6 +444,9 @@ class TweetCapture {
     const messageType = isLikesPage ? 'EXTRACT_INTERESTS' : 'ANALYZE_TWEETS';
 
     console.log(`TSF: Sending batch (${messageType})`, batch.length);
+
+    this.lastSendTime = now;
+    this.hasSentInitialBatch = true;
 
     chrome.runtime.sendMessage({
       type: messageType,
