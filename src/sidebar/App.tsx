@@ -3,7 +3,7 @@ import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { SettingsView } from './components/SettingsView';
 import { OnboardingView } from './components/OnboardingView';
-import { FocusModeView } from './components/FocusModeView';
+import { SignalListView } from './components/SignalListView';
 import { useStore } from './store';
 
 function App() {
@@ -12,7 +12,8 @@ function App() {
     setView,
     setInterests,
     setRecommendedKeywords,
-    setAnalyzingInterests
+    setAnalyzingInterests,
+    addSignal
   } = useStore();
 
   const [hasOnboarded, setHasOnboarded] = useState(false);
@@ -22,8 +23,11 @@ function App() {
 
     if (isExtension) {
       // 检查是否已完成引导
-      chrome.storage.local.get(['tsfOnboarded'], (result) => {
+      chrome.storage.local.get(['tsfOnboarded', 'signals'], (result) => {
         setHasOnboarded(result.tsfOnboarded || false);
+        if (result.signals) {
+          useStore.getState().setSignals(result.signals);
+        }
       });
 
       // Listen for updates
@@ -40,12 +44,15 @@ function App() {
         } else if (message.type === 'SHOW_ONBOARDING') {
           // 显示首次引导
           setHasOnboarded(false);
-        } else if (message.type === 'SWITCH_SIDEBAR_VIEW') {
-          // 切换侧边栏视图 - 'list' 视图重定向到 'focus'
+        } else if (message.type === 'CHANGE_VIEW') {
+          // 切换侧边栏视图
           if (message.data.view) {
-            const targetView = message.data.view === 'list' ? 'focus' : message.data.view;
-            setView(targetView);
+            const targetView = message.data.view === 'list' ? 'list' : message.data.view;
+            setView(targetView as any);
           }
+        } else if (message.type === 'NEW_SIGNAL') {
+          // 接收新信号
+          addSignal(message.data);
         }
       };
       chrome.runtime.onMessage.addListener(listener);
@@ -64,15 +71,15 @@ function App() {
     }, '*');
   };
 
-  // 首次引导完成 - 默认显示专注模式
+  // 首次引导完成 - 默认显示信号列表
   const handleOnboardingComplete = () => {
     setHasOnboarded(true);
-    setView('focus');
+    setView('list');
   };
 
   const handleOnboardingSkip = () => {
     setHasOnboarded(true);
-    setView('focus');
+    setView('list');
   };
 
   // 如果未完成引导，显示引导页面
@@ -90,24 +97,16 @@ function App() {
     );
   }
 
-  // 专注模式视图（默认主页）
-  if (ui.view === 'focus') {
+  // 信号列表视图（默认主页）
+  if (ui.view === 'list') {
     return (
       <div className="flex flex-col h-screen bg-bg-primary text-text-primary overflow-hidden font-sans text-sm">
         <Header
           onSettingsClick={() => setView('settings')}
           onClose={handleClose}
         />
-        <div className="flex-1 overflow-y-auto p-4">
-          <FocusModeView
-            onSettingsChange={(settings) => {
-              // 同步到 content script
-              chrome.runtime.sendMessage({
-                type: 'SET_FOCUS_MODE',
-                data: settings
-              });
-            }}
-          />
+        <div className="flex-1 overflow-y-auto">
+          <SignalListView />
         </div>
         <Footer />
       </div>
@@ -116,25 +115,18 @@ function App() {
 
   // 设置视图
   if (ui.view === 'settings') {
-    return <SettingsView onBack={() => setView('focus')} />;
+    return <SettingsView onBack={() => setView('list')} />;
   }
 
-  // 默认显示专注模式
+  // 默认显示信号列表
   return (
     <div className="flex flex-col h-screen bg-bg-primary text-text-primary overflow-hidden font-sans text-sm">
       <Header
         onSettingsClick={() => setView('settings')}
         onClose={handleClose}
       />
-      <div className="flex-1 overflow-y-auto p-4">
-        <FocusModeView
-          onSettingsChange={(settings) => {
-            chrome.runtime.sendMessage({
-              type: 'SET_FOCUS_MODE',
-              data: settings
-            });
-          }}
-        />
+      <div className="flex-1 overflow-y-auto">
+        <SignalListView />
       </div>
       <Footer />
     </div>

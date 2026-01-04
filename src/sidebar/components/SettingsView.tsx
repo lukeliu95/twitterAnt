@@ -359,11 +359,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
             <div className="space-y-3">
               {collectionPhase === 'completed' && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
-                  <div className="flex items-center gap-2">
-                    <Check size={16} className="text-green-600" />
-                    <p className="text-sm font-medium text-green-700">
-                      分析完成！发现 {interests.length} 个兴趣领域
-                    </p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Check size={16} className="text-green-600" />
+                      <p className="text-sm font-medium text-green-700">
+                        分析完成！发现 {interests.length} 个兴趣领域
+                      </p>
+                    </div>
+                    <button
+                      onClick={onBack}
+                      className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
+                    >
+                      查看信号
+                    </button>
                   </div>
                 </div>
               )}
