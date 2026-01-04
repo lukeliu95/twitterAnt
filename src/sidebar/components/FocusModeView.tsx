@@ -15,7 +15,6 @@ export const FocusModeView: React.FC<FocusModeViewProps> = ({ onSettingsChange }
     mode: 'balanced',
     threshold: 70
   });
-  const [blurredCount, setBlurredCount] = useState(0);
   const [collectionCount, setCollectionCount] = useState(100); // 收集条数
   const [autoMonitoring, setAutoMonitoring] = useState(false); // 自动监控
 
@@ -47,9 +46,7 @@ export const FocusModeView: React.FC<FocusModeViewProps> = ({ onSettingsChange }
 
     // 监听来自 content script 的消息
     const handleMessage = (message: any) => {
-      if (message.type === 'FOCUS_MODE_UPDATED') {
-        setBlurredCount(message.data.blurredCount || 0);
-      } else if (message.type === 'SIGNAL_STATS_UPDATED') {
+      if (message.type === 'SIGNAL_STATS_UPDATED') {
         setSignalStats(message.data);
       }
     };
@@ -190,22 +187,14 @@ export const FocusModeView: React.FC<FocusModeViewProps> = ({ onSettingsChange }
         </div>
       </div>
 
-      {/* 统计信息 */}
-      <div className="focus-stats">
-        <div className="stat-item">
-          <span className="stat-icon">📦</span>
-          <span>已弱化 <strong>{blurredCount}</strong> 条</span>
-        </div>
-        <button className="reset-btn" onClick={handleReset}>
-          <RotateCcw size={14} />
-          全部恢复
-        </button>
-      </div>
-
       {/* 信号统计 */}
       <div className="signal-stats-card">
         <div className="stats-header">
           <h4>信号统计</h4>
+          <button className="reset-btn" onClick={handleReset}>
+            <RotateCcw size={14} />
+            全部恢复
+          </button>
         </div>
         <div className="stats-grid">
           <div className="stat-card">
@@ -230,7 +219,18 @@ export const FocusModeView: React.FC<FocusModeViewProps> = ({ onSettingsChange }
 
       {/* 监控设置 */}
       <div className="monitoring-settings">
-        <h4>监控设置</h4>
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="font-semibold text-text-primary">分析与监控</h4>
+          <button
+            onClick={() => {
+              chrome.runtime.sendMessage({ type: 'START_TIMELINE_ANALYSIS' });
+            }}
+            className="px-3 py-1.5 bg-accent-color text-white rounded-lg text-sm font-medium hover:bg-accent-color/90 transition-colors flex items-center gap-2"
+          >
+            <RotateCcw size={14} />
+            开始分析
+          </button>
+        </div>
 
         {/* 收集条数 */}
         <div className="setting-item">
@@ -274,37 +274,6 @@ export const FocusModeView: React.FC<FocusModeViewProps> = ({ onSettingsChange }
           <p className="setting-description">
             自动分析时间线上的新推文，无需手动触发
           </p>
-        </div>
-      </div>
-
-      {/* 快捷操作 */}
-      <div className="quick-actions">
-        <h4>快捷操作</h4>
-        <div className="action-list">
-          <button
-            className="action-btn"
-            onClick={() => chrome.runtime.sendMessage({ type: 'TOGGLE_SIDEBAR' })}
-          >
-            隐藏/显示侧边栏
-          </button>
-          <button
-            className="action-btn"
-            onClick={() => chrome.runtime.sendMessage({ type: 'CLEAR_ALL_SIGNALS' })}
-          >
-            清除所有信号
-          </button>
-          <button
-            className="action-btn"
-            onClick={() => {
-              // 清除已分析推文记录
-              chrome.storage.local.remove(['analyzedTweetIds'], () => {
-                console.log('TSF: Cleared analyzed tweets cache');
-                alert('已清除分析缓存，下次将重新分析所有推文');
-              });
-            }}
-          >
-            清除分析缓存
-          </button>
         </div>
       </div>
     </div>

@@ -13,18 +13,6 @@ chrome.storage.local.get(['tsfAutoMonitoring'], (result) => {
   }
 });
 
-// Listen for action click (Toggle Sidebar)
-chrome.action.onClicked.addListener((tab) => {
-  if (tab.id) {
-    // Check if we can communicate with the tab first
-    chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR' })
-      .catch((err) => {
-        console.log('Failed to toggle sidebar, content script might not be ready:', err);
-        // Optional: Inject content script if missing (advanced)
-      });
-  }
-});
-
 // Listen for messages
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   console.log('Background received message:', message);
@@ -102,7 +90,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     chrome.tabs.query({ url: ['*://*.twitter.com/*', '*://*.x.com/*'] }, (tabs) => {
       tabs.forEach(tab => {
-        if (tab.id) {
+        if (tab.id && tab.url && (tab.url.includes('/home') || tab.url === 'https://x.com/' || tab.url === 'https://twitter.com/')) {
           chrome.tabs.sendMessage(tab.id, message).catch(() => {
             console.log('Failed to send timeline collection to tab:', tab.id);
           });
@@ -203,14 +191,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       const activeTab = tabs[0];
       if (activeTab && activeTab.id) {
         const tabId = activeTab.id;
-        // 获取收集条数设置
-        chrome.storage.local.get(['tsfCollectionCount'], (result) => {
-          const targetCount = result.tsfCollectionCount || 100;
-          chrome.tabs.sendMessage(tabId, {
-            type: 'START_TIMELINE_COLLECTION',
-            data: { targetCount }
+        const isHome = activeTab.url && (activeTab.url.includes('/home') || activeTab.url === 'https://x.com/' || activeTab.url === 'https://twitter.com/');
+
+        if (!isHome) {
+          // 如果不在主页，跳转到主页并设置待分析标志
+          chrome.storage.local.set({ 
+            pendingTimelineAnalysis: true,
+            autoStartFocusMode: true 
+          }, () => {
+            chrome.tabs.update(tabId, { url: 'https://x.com/home' });
           });
-        });
+        } else {
+          // 在主页，直接开始分析
+          chrome.storage.local.get(['tsfCollectionCount'], (result) => {
+            const targetCount = result.tsfCollectionCount || 100;
+            chrome.tabs.sendMessage(tabId, {
+              type: 'START_TIMELINE_COLLECTION',
+              data: { targetCount }
+            });
+          });
+        }
       }
     });
     sendResponse({ success: true });
@@ -314,10 +314,10 @@ async function analyzeTweets(tweets: Tweet[]): Promise<Signal[]> {
         });
       });
 
-      // 通知侧边栏切换到信号列表视图
+      // 通知侧边栏切换到专注模式视图
       chrome.runtime.sendMessage({
         type: 'SWITCH_SIDEBAR_VIEW',
-        data: { view: 'list' }
+        data: { view: 'focus' }
       }).catch(() => {});
     }
 
