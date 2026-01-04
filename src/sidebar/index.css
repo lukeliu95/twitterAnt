@@ -548,12 +548,6 @@ body {
   font-weight: 600;
 }
 
-.action-btn:hover {
-  background: var(--hover-bg);
-  border-color: var(--border-hover);
-  color: var(--text-primary);
-}
-
 /* Signal Stats Card - 新增 */
 .signal-stats-card {
   padding: 1rem;
@@ -564,6 +558,9 @@ body {
 }
 
 .signal-stats-card .stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 0.75rem;
 }
 
@@ -608,37 +605,4 @@ body {
 .signal-stats-card .stat-label {
   font-size: 0.7rem;
   color: var(--text-tertiary);
-}
-
-/* Quick Actions */
-.quick-actions {
-  padding: 1rem;
-  background: var(--card-bg);
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
-}
-
-.quick-actions h4 {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 1rem;
-}
-
-.action-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.action-btn {
-  padding: 0.75rem 1rem;
-  background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: left;
 }

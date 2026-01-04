@@ -312,13 +312,12 @@ export class SignalIndicatorManager {
    * 获取分数徽章
    */
   private getScoreBadge(score: number): string {
-    const intensityClass = this.getIntensityClass(score);
     const icon = score >= 85 ? '🔥' : '📊';
     return `
-      <div class="tsf-score-badge tsf-score-${intensityClass}">
+      <div class="tsf-score-badge tsf-score-${this.getIntensityClass(score)}">
         <span class="tsf-score-icon">${icon}</span>
         <span class="tsf-score-value">${score}</span>
-        <span class="tsf-score-label">趋势信号</span>
+        <span class="tsf-score-label">趋势信号 TSF</span>
       </div>
     `;
   }

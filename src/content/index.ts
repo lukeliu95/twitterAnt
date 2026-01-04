@@ -27,10 +27,7 @@ class SidebarManager {
 
     // Listen for toggle message
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message.type === 'TOGGLE_SIDEBAR') {
-        this.toggle();
-        sendResponse({ success: true }); // Respond to acknowledge receipt
-      } else if (message.type === 'SHOW_SIDEBAR') {
+      if (message.type === 'SHOW_SIDEBAR') {
         // 显示侧边栏，可选指定视图
         this.show();
         // 如果指定了视图，通知侧边栏切换视图
@@ -61,14 +58,6 @@ class SidebarManager {
         this.hide();
       }
     });
-  }
-
-  toggle() {
-    if (this.isVisible) {
-      this.hide();
-    } else {
-      this.show();
-    }
   }
 
   show() {
@@ -469,6 +458,9 @@ class TweetCapture {
       return;
     }
 
+    // 检查是否在首页
+    const isOnHomepage = window.location.pathname === '/home' || window.location.pathname === '/';
+
     mutations.forEach(mutation => {
       mutation.addedNodes.forEach(node => {
         if (node instanceof HTMLElement && this.isTweetElement(node)) {
@@ -494,7 +486,8 @@ class TweetCapture {
                      total: this.LIKES_BATCH_SIZE
                    }
                  }).catch(() => {}); // 忽略错误
-               } else if (!isLikesPage) {
+               } else if (isOnHomepage) {
+                 // 只在首页收集推文进行分析
                  this.batchQueue.push(tweetData);
                }
                this.capturedTweets.add(tweetData.tweetId);
@@ -523,7 +516,8 @@ class TweetCapture {
                           total: this.LIKES_BATCH_SIZE
                         }
                       }).catch(() => {}); // 忽略错误
-                    } else if (!isLikesPage) {
+                    } else if (isOnHomepage) {
+                      // 只在首页收集推文进行分析
                       this.batchQueue.push(tweetData);
                     }
                     this.capturedTweets.add(tweetData.tweetId);
@@ -538,7 +532,7 @@ class TweetCapture {
       if (this.likesQueue.length >= this.LIKES_BATCH_SIZE && !this.hasSentLikesForAnalysis) {
         this.sendLikesBatch();
       }
-    } else if (!isLikesPage) {
+    } else if (isOnHomepage) {
       // 渐进式分析：达到批次大小就立即发送，不等待
       if (this.batchQueue.length >= this.BATCH_SIZE) {
         console.log(`TSF: 渐进式分析 - 已收集 ${this.batchQueue.length} 条，立即发送分析`);
@@ -687,6 +681,7 @@ class TweetCapture {
    */
   collectExistingTweets() {
     const isLikesPage = window.location.pathname.endsWith('/likes');
+    const isOnHomepage = window.location.pathname === '/home' || window.location.pathname === '/';
 
     // 如果已经发送过分析数据，跳过
     if (isLikesPage && this.hasSentLikesForAnalysis) {
@@ -711,7 +706,8 @@ class TweetCapture {
           this.likesQueue.push(tweetData);
           this.collectedLikesCount++;
           console.log(`TSF: Collected existing like ${this.collectedLikesCount}/100:`, tweetData.tweetId);
-        } else if (!isLikesPage) {
+        } else if (isOnHomepage) {
+          // 只在首页收集推文进行分析
           this.batchQueue.push(tweetData);
         }
         this.capturedTweets.add(tweetData.tweetId);
@@ -721,7 +717,7 @@ class TweetCapture {
     // 如果收集到足够的数据，立即发送
     if (isLikesPage && this.isCollectingForAnalysis && this.likesQueue.length >= this.LIKES_BATCH_SIZE && !this.hasSentLikesForAnalysis) {
       this.sendLikesBatch();
-    } else if (!isLikesPage && this.batchQueue.length >= this.BATCH_SIZE) {
+    } else if (isOnHomepage && this.batchQueue.length >= this.BATCH_SIZE) {
       this.sendBatch();
     }
   }
@@ -931,10 +927,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     sendResponse({ success: true });
   } else if (message.type === 'REMOVE_SIGNAL') {
     indicatorManager.removeIndicator(message.data.tweetId);
-    focusModeController.applyToTweets();
-    sendResponse({ success: true });
-  } else if (message.type === 'CLEAR_ALL_SIGNALS') {
-    indicatorManager.clear();
     focusModeController.applyToTweets();
     sendResponse({ success: true });
   }

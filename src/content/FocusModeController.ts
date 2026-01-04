@@ -126,7 +126,7 @@ export class FocusModeController {
     }
 
     // 应用到推文并发送通知
-    this.applyToTweets(true);
+    this.applyToTweets();
 
     // 保存设置
     this.saveSettings();
@@ -148,86 +148,80 @@ export class FocusModeController {
     }
 
     // 应用到推文并发送通知
-    this.applyToTweets(true);
+    this.applyToTweets();
 
     // 保存设置
     this.saveSettings();
   }
 
   /**
-   * 应用到推文
+   * 将逻辑应用到推文
    */
-  applyToTweets(notify: boolean = false) {
+  public applyToTweets() {
     const tweets = document.querySelectorAll('[data-testid="tweet"]');
     this.blurredCount = 0;
 
-    tweets.forEach(tweet => {
+    // 先从存储同步一次分数，确保获取到最新持久化的数据
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.get(['allTweetScores'], (result) => {
+        if (result.allTweetScores) {
+          this.tweetScores = { ...this.tweetScores, ...result.allTweetScores };
+        }
+        this._executeApply(tweets);
+      });
+    } else {
+      this._executeApply(tweets);
+    }
+  }
+
+  /**
+   * 真正的应用逻辑
+   */
+  private _executeApply(tweets: NodeListOf<Element>) {
+    tweets.forEach((tweet) => {
       const tweetElement = tweet as HTMLElement;
       const tweetId = this.getTweetId(tweetElement);
+      
+      // Alan Cooper 设计原则：通过透明度弱化，而不是完全移除
+      // 这样用户仍然能感觉到推文的存在，保持空间感
+      let opacity = 1;
 
-      // 检查是否在白名单中
-      if (this.whitelistedTweets.has(tweetId)) {
-        this.setTweetOpacity(tweetElement, 1);
+      // 检查是否在白名单
+      if (tweetId && this.whitelistedTweets.has(tweetId)) {
+        tweetElement.style.opacity = '1';
+        tweetElement.style.filter = 'none';
         return;
       }
 
-      // 获取推文分数
+      // 暂时按住 Shift 键显示全部
+      if (this.settings.shiftKeyActive) {
+        tweetElement.style.opacity = '1';
+        tweetElement.style.filter = 'none';
+        return;
+      }
+
       const score = this.getTweetScore(tweetElement);
 
-      // 计算透明度
-      let opacity = 1;
-      
-      // 在专注模式下，如果没有分数的推文（噪音）将被大幅弱化
       if (this.settings.mode === 'focused') {
         if (score === null || score < this.settings.threshold) {
           opacity = 0.15; // 几乎看不见
           this.blurredCount++;
         }
       } else if (this.settings.mode === 'balanced') {
-        if (score === null) {
-          opacity = 0.4; // 弱化
-          this.blurredCount++;
-        } else if (score < this.settings.threshold) {
-          const diff = this.settings.threshold - score;
-          opacity = Math.max(0.3, 1 - (diff / 100));
+        if (score !== null && score < this.settings.threshold) {
+          opacity = 0.4; // 弱化显示
           this.blurredCount++;
         }
-      } else if (score !== null && score < this.settings.threshold) {
-        // 'all' 模式下只根据阈值弱化有信号的推文
-        const diff = this.settings.threshold - score;
-        opacity = Math.max(0.2, 1 - (diff / 100));
-        this.blurredCount++;
       }
 
-      this.setTweetOpacity(tweetElement, opacity);
+      tweetElement.style.opacity = opacity.toString();
+      tweetElement.style.transition = 'opacity 0.3s ease, filter 0.3s ease';
     });
 
-    // 只在需要时通知更新统计
-    if (notify) {
-      this.notifyUpdate();
-    }
+    this.notifyUpdate();
   }
 
-  /**
-   * 设置推文透明度
-   */
-  private setTweetOpacity(tweet: HTMLElement, opacity: number) {
-    // Shift 键按下时显示全部
-    if (this.settings.shiftKeyActive) {
-      tweet.style.opacity = '1';
-      tweet.style.filter = 'none';
-      tweet.classList.remove('tsf-blurred');
-    } else {
-      tweet.style.opacity = opacity.toString();
-      tweet.style.filter = opacity < 1 ? 'grayscale(50%)' : 'none';
 
-      if (opacity < 1) {
-        tweet.classList.add('tsf-blurred');
-      } else {
-        tweet.classList.remove('tsf-blurred');
-      }
-    }
-  }
 
   /**
    * 获取推文 ID
@@ -273,11 +267,17 @@ export class FocusModeController {
   }
 
   /**
-   * 重置所有
+   * 清除所有逻辑
    */
   resetAll() {
-    this.whitelistedTweets.clear();
-    this.setMode('all');
+    const tweets = document.querySelectorAll('[data-testid="tweet"]');
+    tweets.forEach((tweet) => {
+      const tweetElement = tweet as HTMLElement;
+      tweetElement.style.opacity = '1';
+      tweetElement.style.filter = 'none';
+    });
+    this.blurredCount = 0;
+    this.notifyUpdate();
   }
 
   /**
