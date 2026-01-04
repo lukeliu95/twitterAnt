@@ -70,6 +70,13 @@ export class TimelineCollector {
     });
 
     this.isCollecting = false;
+
+    // 收集完成后，滚动到页面顶部，方便用户从最新内容开始查看
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+
     return tweets;
   }
 
@@ -242,7 +249,30 @@ export class TimelineCollector {
    * 获取推文内容
    */
   private getContent(element: HTMLElement): string {
-    return element.querySelector('[data-testid="tweetText"]')?.textContent || '';
+    // 尝试多种选择器以提高兼容性
+    let content = element.querySelector('[data-testid="tweetText"]')?.textContent || '';
+
+    // 如果没找到，尝试其他可能的选择器
+    if (!content) {
+      // 尝试通过 lang 属性查找
+      const langDiv = element.querySelector('div[lang]');
+      if (langDiv) {
+        content = langDiv.textContent || '';
+      }
+    }
+
+    // 如果还是没找到，尝试查找文章元素
+    if (!content) {
+      const article = element.closest('article');
+      if (article) {
+        const textDivs = article.querySelectorAll('div[lang], div[data-testid="tweetText"]');
+        if (textDivs.length > 0) {
+          content = Array.from(textDivs).map(div => div.textContent).join(' ').trim();
+        }
+      }
+    }
+
+    return content.trim();
   }
 
   /**

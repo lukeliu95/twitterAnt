@@ -37,6 +37,8 @@ export class TimelinePromptManager {
           this.hideBanner();
           this.promptShown = true;
           chrome.storage.local.set({ timelinePromptShown: true });
+        } else if (message.type === 'SHOW_TIMELINE_PROMPT') {
+          this.showPrompt();
         }
       });
     }
@@ -59,7 +61,10 @@ export class TimelinePromptManager {
     }
   }
 
-  private showPrompt() {
+  public showPrompt() {
+    // 如果已经正在分析，不显示
+    if (this.isAnalyzing) return;
+    
     // 如果已经存在 banner，不重复创建
     if (this.bannerElement) return;
 

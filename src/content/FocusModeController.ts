@@ -12,6 +12,7 @@ export class FocusModeController {
   private settings: FocusModeSettings;
   private whitelistedTweets: Set<string> = new Set();
   private blurredCount: number = 0;
+  private tweetScores: Record<string, number> = {};
 
   constructor() {
     // 从存储加载设置
@@ -20,13 +21,26 @@ export class FocusModeController {
       threshold: 0,
       shiftKeyActive: false
     };
-    this.loadSettings();
+    this.init();
   }
 
   /**
    * 初始化控制器
    */
-  init() {
+  async init() {
+    // 加载设置和分数
+    this.loadSettings();
+
+    // 加载分数
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.get(['allTweetScores'], (result) => {
+        if (result.allTweetScores) {
+          this.tweetScores = result.allTweetScores;
+        }
+        this.applyToTweets();
+      });
+    }
+
     // 加载白名单
     this.loadWhitelist();
 
@@ -49,6 +63,9 @@ export class FocusModeController {
           this.settings = { ...this.settings, ...message.data };
           this.applyToTweets();
           this.notifyUpdate();
+        } else if (message.type === 'UPDATE_TWEET_SCORES') {
+          this.tweetScores = message.data;
+          this.applyToTweets();
         } else if (message.type === 'RESET_FOCUS_MODE') {
           this.resetAll();
         }
@@ -108,14 +125,11 @@ export class FocusModeController {
         break;
     }
 
-    // 应用到推文
-    this.applyToTweets();
+    // 应用到推文并发送通知
+    this.applyToTweets(true);
 
     // 保存设置
     this.saveSettings();
-
-    // 通知侧边栏更新
-    this.notifyUpdate();
   }
 
   /**
@@ -133,20 +147,17 @@ export class FocusModeController {
       this.settings.mode = 'all';
     }
 
-    // 应用到推文
-    this.applyToTweets();
+    // 应用到推文并发送通知
+    this.applyToTweets(true);
 
     // 保存设置
     this.saveSettings();
-
-    // 通知侧边栏更新
-    this.notifyUpdate();
   }
 
   /**
    * 应用到推文
    */
-  applyToTweets() {
+  applyToTweets(notify: boolean = false) {
     const tweets = document.querySelectorAll('[data-testid="tweet"]');
     this.blurredCount = 0;
 
@@ -165,8 +176,24 @@ export class FocusModeController {
 
       // 计算透明度
       let opacity = 1;
-      if (score !== null && score < this.settings.threshold) {
-        // 根据分数和阈值计算透明度
+      
+      // 在专注模式下，如果没有分数的推文（噪音）将被大幅弱化
+      if (this.settings.mode === 'focused') {
+        if (score === null || score < this.settings.threshold) {
+          opacity = 0.15; // 几乎看不见
+          this.blurredCount++;
+        }
+      } else if (this.settings.mode === 'balanced') {
+        if (score === null) {
+          opacity = 0.4; // 弱化
+          this.blurredCount++;
+        } else if (score < this.settings.threshold) {
+          const diff = this.settings.threshold - score;
+          opacity = Math.max(0.3, 1 - (diff / 100));
+          this.blurredCount++;
+        }
+      } else if (score !== null && score < this.settings.threshold) {
+        // 'all' 模式下只根据阈值弱化有信号的推文
         const diff = this.settings.threshold - score;
         opacity = Math.max(0.2, 1 - (diff / 100));
         this.blurredCount++;
@@ -175,8 +202,10 @@ export class FocusModeController {
       this.setTweetOpacity(tweetElement, opacity);
     });
 
-    // 通知更新统计
-    this.notifyUpdate();
+    // 只在需要时通知更新统计
+    if (notify) {
+      this.notifyUpdate();
+    }
   }
 
   /**
@@ -213,7 +242,12 @@ export class FocusModeController {
    * 获取推文分数
    */
   private getTweetScore(tweet: HTMLElement): number | null {
-    // 检查是否有信号卡片
+    const tweetId = this.getTweetId(tweet);
+    if (tweetId && this.tweetScores[tweetId] !== undefined) {
+      return this.tweetScores[tweetId];
+    }
+
+    // 备选：检查是否有信号卡片
     const signalCard = tweet.querySelector('.tsf-signal-card');
     if (signalCard) {
       const scoreAttr = signalCard.getAttribute('data-tsf-score');
